@@ -14,10 +14,10 @@ import { useAuth } from './context/AuthContext';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, userData, loading, logout } = useAuth();
   
   if (loading) return (
-    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyCenter: 'center' }}>
+    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>
       <h2>Loading SahilDev HRM...</h2>
     </div>
   );
@@ -26,10 +26,21 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
+  if (userData?.status === 'Deactivated') {
+    logout();
+    return <Navigate to="/login" />;
+  }
+
   return children;
 };
 
+
 function App() {
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
+
   return (
     <Router>
       <Routes>
@@ -39,9 +50,9 @@ function App() {
         <Route path="/*" element={
           <ProtectedRoute>
             <div className="app-layout">
-              <Sidebar />
+              <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
               <main className="main-content">
-                <Navbar />
+                <Navbar onMenuClick={toggleSidebar} />
                 <div className="page-wrapper">
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
@@ -61,6 +72,11 @@ function App() {
                 </div>
               </main>
 
+              {/* Mobile Backdrop */}
+              {isSidebarOpen && (
+                <div className="mobile-backdrop" onClick={closeSidebar} />
+              )}
+
               <style jsx>{`
                 .app-layout {
                   display: flex;
@@ -72,6 +88,7 @@ function App() {
                   margin-left: 250px;
                   min-height: 100vh;
                   background-color: #f8fafc;
+                  transition: margin-left 0.3s ease;
                 }
 
                 .page-wrapper {
@@ -80,12 +97,24 @@ function App() {
                   padding: 2rem 2.5rem;
                 }
 
+                .mobile-backdrop {
+                  display: none;
+                  position: fixed;
+                  inset: 0;
+                  background: rgba(0, 0, 0, 0.4);
+                  backdrop-filter: blur(4px);
+                  z-index: 45;
+                }
+
                 @media (max-width: 1024px) {
                   .main-content {
                     margin-left: 0;
                   }
                   .page-wrapper {
                     padding: 1rem;
+                  }
+                  .mobile-backdrop {
+                    display: block;
                   }
                 }
               `}</style>

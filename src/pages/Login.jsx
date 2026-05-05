@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
-  const [role, setRole] = useState('employee');
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -81,20 +80,8 @@ const Login = () => {
           <p>Access your professional workspace</p>
         </div>
 
-        <div className="role-toggle">
-          <button 
-            className={`toggle-btn ${role === 'employee' ? 'active' : ''}`}
-            onClick={() => setRole('employee')}
-          >
-            Employee
-          </button>
-          <button 
-            className={`toggle-btn ${role === 'admin' ? 'active' : ''}`}
-            onClick={() => setRole('admin')}
-          >
-            Administrator
-          </button>
-        </div>
+        {/* Role toggle removed as roles are now handled automatically by email/Firestore */}
+
 
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="form-group">

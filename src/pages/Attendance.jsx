@@ -7,24 +7,182 @@ import {
   FileText,
   Check,
   X,
-  Clock
+  Clock,
+  Loader2,
+  Download,
+  CheckCircle
 } from 'lucide-react';
 
-const Attendance = () => {
-  const attendanceLogs = [];
+import { useAuth } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, Timestamp, orderBy } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
 
-  const applications = [];
+const Attendance = () => {
+  const { currentUser, userData, isSuperAdmin } = useAuth();
+  const [applications, setApplications] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filterTab, setFilterTab] = useState('PENDING');
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    type: 'Annual Leave',
+    startDate: '',
+    endDate: '',
+    note: ''
+  });
+
+  // Fetch Applications
+  useEffect(() => {
+    // Superadmin sees all, Employee sees only theirs
+    const userRole = userData?.role?.toLowerCase();
+    const isAdmin = isSuperAdmin || userRole === 'admin';
+    const q = isAdmin
+      ? query(collection(db, 'leave_applications'), orderBy('createdAt', 'desc'))
+      : query(collection(db, 'leave_applications'), where('userId', '==', currentUser?.uid), orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const apps = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setApplications(apps);
+      setLoading(false);
+    }, (err) => {
+      console.error("Firestore error:", err);
+      setError("Failed to load applications. " + err.message);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [isSuperAdmin, userData?.role, currentUser?.uid]);
+
+  const handleApply = async (e) => {
+    e.preventDefault();
+    if (!formData.startDate || !formData.endDate) return alert('Please select dates');
+    
+    setSubmitting(true);
+    try {
+      await addDoc(collection(db, 'leave_applications'), {
+        userId: currentUser.uid,
+        userName: userData?.fullName || currentUser.displayName || 'Unknown',
+        userRole: userData?.role || 'Employee',
+        type: formData.type,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        note: formData.note,
+        status: 'PENDING',
+        createdAt: Timestamp.now()
+      });
+      setShowModal(false);
+      setFormData({ type: 'Annual Leave', startDate: '', endDate: '', note: '' });
+    } catch (error) {
+      console.error("Error applying for leave:", error);
+      alert("Failed to submit application.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStatusUpdate = async (id, newStatus) => {
+    try {
+      await updateDoc(doc(db, 'leave_applications', id), {
+        status: newStatus,
+        reviewedBy: currentUser.email,
+        reviewedAt: Timestamp.now()
+      });
+    } catch (error) {
+      console.error("Error updating application:", error);
+    }
+  };
+
+  const handleGenerateReport = () => {
+    if (applications.length === 0) return alert('No data to export');
+    const headers = ["Staff Name", "Type", "Start Date", "End Date", "Status", "Note"];
+    const rows = applications.map(app => [
+      `"${app.userName}"`,
+      `"${app.type}"`,
+      `"${app.startDate}"`,
+      `"${app.endDate}"`,
+      `"${app.status}"`,
+      `"${app.note || ''}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `staff_leave_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+
+  // Fetch Daily Attendance Logs
+  useEffect(() => {
+    if (!userData?.uid) return;
+
+    // Superadmin/Admin/HR see all logs, Employees see only their own
+    // Note: HR can see all attendance but only Admin/Superadmin can approve leave for HR
+    const userRole = userData?.role?.toLowerCase();
+    const isAdmin = isSuperAdmin || userRole === 'admin' || userRole === 'hr' || userData?.permissions?.canViewAttendance;
+    
+    let q = query(collection(db, 'daily_attendance'), orderBy('date', 'desc'), orderBy('checkIn', 'desc'));
+    
+    if (!isAdmin) {
+      q = query(
+        collection(db, 'daily_attendance'), 
+        where('userId', '==', userData.uid),
+        orderBy('date', 'desc'),
+        orderBy('checkIn', 'desc')
+      );
+    }
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.userName || 'Staff Member',
+          avatar: (data.userName || 'S').charAt(0),
+          status: data.status || 'Present',
+          checkIn: (data.checkIn && typeof data.checkIn.toDate === 'function') ? data.checkIn.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-',
+          checkOut: (data.checkOut && typeof data.checkOut.toDate === 'function') ? data.checkOut.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-',
+          date: data.date,
+          ip: data.checkInIp || data.checkOutIp
+        };
+      });
+      setAttendanceLogs(logs);
+    }, (err) => {
+      console.error("Attendance logs error:", err);
+    });
+
+    return () => unsubscribe();
+  }, [userData?.uid, userData?.role, isSuperAdmin, userData?.permissions?.canViewAttendance]);
+
+  const isAdmin = isSuperAdmin || userData?.role?.toLowerCase() === 'admin' || userData?.role?.toLowerCase() === 'hr' || userData?.permissions?.canViewAttendance;
+  const isManager = isSuperAdmin || userData?.role?.toLowerCase() === 'admin';
 
   return (
     <div className="attendance-page">
       <header className="page-header">
         <div className="header-left">
-          <h1>Leave Tracking Workspace</h1>
-          <p>Manage attendance records and employee leave requests.</p>
+          <h1>{isManager ? 'Staff Attendance Workspace' : 'My Attendance & Leave'}</h1>
+          <p>{isManager ? 'Monitor staff presence and review leave applications.' : 'Track your daily attendance and manage your leave requests.'}</p>
         </div>
         <div className="header-actions">
-          <button className="btn-outline">Generate Report</button>
-          <button className="btn-primary flex items-center gap-2">
+          <button className="btn-outline flex items-center gap-2" onClick={handleGenerateReport}>
+            <Download size={20} />
+            <span>Generate Report</span>
+          </button>
+          <button 
+            className="btn-primary flex items-center gap-2"
+            onClick={() => setShowModal(true)}
+          >
             <Plus size={18} />
             New Application
           </button>
@@ -55,72 +213,124 @@ const Attendance = () => {
 
             <div className="logs-table">
                <div className="log-header">
-                  <span>EMPLOYEE</span>
-                  <span>STATUS</span>
+                  <span>DATE</span>
+                  <span>{isSuperAdmin ? 'STAFF MEMBER' : 'STATUS'}</span>
                   <span>CHECK IN</span>
                   <span>CHECK OUT</span>
+                  {isSuperAdmin && <span>IP ADDR</span>}
                </div>
-               {attendanceLogs.map((log, idx) => (
-                 <div key={idx} className="log-row">
+                {attendanceLogs.length > 0 ? (
+                  attendanceLogs.map((log, idx) => (
+                    <div key={log.id || idx} className="log-row">
+                      <div className="date-cell font-bold">{log.date}</div>
+                  {isAdmin ? (
                     <div className="user-info">
-                       <div className="avatar-xs">{log.avatar}</div>
-                       <span>{log.name}</span>
+                      <div className="avatar-xs bg-blue-100 text-blue-600">{log.avatar}</div>
+                      <span>{log.name}</span>
                     </div>
-                    <div>
-                       <span className={`badge-pill ${log.status.toLowerCase()}`}>
-                          {log.status}
-                       </span>
+                  ) : (
+                        <div>
+                          <span className={`badge-pill ${log.status?.toLowerCase() || 'present'}`}>
+                            {log.status}
+                          </span>
+                        </div>
+                      )}
+                      <div className="time">{log.checkIn}</div>
+                      <div className="time">{log.checkOut}</div>
+                      {isAdmin && <div className="text-xs text-muted font-mono">{log.ip || '-'}</div>}
                     </div>
-                    <div className="time">{log.checkIn}</div>
-                    <div className="time">{log.checkOut}</div>
-                 </div>
-               ))}
+                  ))
+                ) : (
+                  <div className="empty-state py-8 text-center text-muted">
+                    <p>No attendance records found for this period.</p>
+                  </div>
+                )}
             </div>
           </div>
 
           <div className="card review-section">
              <div className="card-header">
-                <h3>Review Applications</h3>
+                <h3>{isManager ? 'Review Applications' : 'My Applications'}</h3>
                 <div className="filter-pills">
-                   <button className="pill active">Pending (0)</button>
-                   <button className="pill">All Requests</button>
+                   <button 
+                     className={`pill ${filterTab === 'PENDING' ? 'active' : ''}`}
+                     onClick={() => setFilterTab('PENDING')}
+                   >
+                    Pending ({applications.filter(a => a.status === 'PENDING').length})
+                   </button>
+                   <button 
+                     className={`pill ${filterTab === 'ALL' ? 'active' : ''}`}
+                     onClick={() => setFilterTab('ALL')}
+                   >
+                     All Requests
+                   </button>
                 </div>
              </div>
              <div className="app-list">
-                {applications.map((app, idx) => (
-                  <div key={idx} className="app-card">
-                     <div className="app-top">
-                        <div className="user-meta">
-                           <div className="avatar-sm">{app.name.charAt(0)}</div>
-                           <div>
-                              <p className="font-bold">{app.name}</p>
-                              <p className="text-muted">{app.role} • {app.type}</p>
-                           </div>
-                        </div>
-                        <div className="app-date">
-                           <Calendar size={14} />
-                           <span>{app.date} <strong>({app.duration})</strong></span>
-                        </div>
-                     </div>
-                     <p className="app-note">"{app.note}"</p>
-                     <div className="app-bottom">
-                        {app.status === 'PENDING' ? (
-                          <div className="status-row">
-                             <span className="status-label warning">● PENDING</span>
-                             <div className="actions">
-                                <button className="icon-btn red"><X size={18} /></button>
-                                <button className="icon-btn green"><Check size={18} /></button>
+                {loading ? (
+                  <div className="flex items-center justify-center p-8 text-muted">
+                    <Loader2 className="animate-spin mr-2" size={20} />
+                    Loading applications...
+                  </div>
+                ) : error ? (
+                  <div className="alert alert-error m-4">
+                    <p>{error}</p>
+                    <p className="text-xs mt-2">Check Firebase console for missing indexes.</p>
+                  </div>
+                ) : applications.length === 0 ? (
+                  <div className="text-center p-8 text-muted">No applications found.</div>
+                ) : (
+                  applications
+                    .filter(app => filterTab === 'ALL' || app.status === filterTab)
+                    .map((app) => (
+                    <div key={app.id} className="app-card">
+                       <div className="app-top">
+                          <div className="user-meta">
+                             <div className="avatar-sm">{app.userName?.charAt(0) || 'U'}</div>
+                             <div>
+                                <p className="font-bold">{app.userName || 'Unknown User'}</p>
+                                <p className="text-muted">{app.userRole || 'Staff'} • {app.type}</p>
                              </div>
                           </div>
-                        ) : (
-                          <div className="status-row">
-                             <span className="status-label success">● APPROVED</span>
-                             <button className="btn-outline btn-xs">View Details</button>
+                          <div className="app-date">
+                             <Calendar size={14} />
+                             <span>{app.startDate} to {app.endDate}</span>
                           </div>
-                        )}
-                     </div>
-                  </div>
-                ))}
+                       </div>
+                       <p className="app-note">"{app.note}"</p>
+                       <div className="app-bottom">
+                          {app.status === 'PENDING' ? (
+                            <div className="status-row">
+                               <span className="status-label warning">● PENDING</span>
+                               {(isSuperAdmin || (userData?.role?.toLowerCase() === 'admin' && app.userRole?.toLowerCase() !== 'hr' && app.userRole?.toLowerCase() !== 'admin')) && (
+                                 <div className="actions">
+                                    <button 
+                                      className="icon-btn red" 
+                                      onClick={() => handleStatusUpdate(app.id, 'REJECTED')}
+                                    >
+                                      <X size={18} />
+                                    </button>
+                                    <button 
+                                      className="icon-btn green"
+                                      onClick={() => handleStatusUpdate(app.id, 'APPROVED')}
+                                    >
+                                      <Check size={18} />
+                                    </button>
+                                 </div>
+                               )}
+                            </div>
+                          ) : (
+                            <div className="status-row">
+                               <span className={`status-label ${app.status === 'APPROVED' ? 'success' : 'danger'}`}>
+                                ● {app.status}
+                               </span>
+                               <span className="text-muted text-xs">Reviewed by {app.reviewedBy}</span>
+                            </div>
+                          )}
+                       </div>
+                    </div>
+                  ))
+                )}
              </div>
           </div>
         </div>
@@ -147,10 +357,71 @@ const Attendance = () => {
           <div className="card time-off-card">
              <h3>Need Time Off?</h3>
              <p>Your request will be reviewed by HR within 24 hours.</p>
-             <button className="btn-white">Apply Now</button>
+             <button className="btn-white" onClick={() => setShowModal(true)}>Apply Now</button>
           </div>
         </aside>
       </div>
+
+      {/* Leave Application Modal */}
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <h2>New Leave Application</h2>
+              <button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleApply}>
+              <div className="form-group">
+                <label>Leave Type</label>
+                <select 
+                  value={formData.type}
+                  onChange={(e) => setFormData({...formData, type: e.target.value})}
+                >
+                  <option>Annual Leave</option>
+                  <option>Sick Leave</option>
+                  <option>Personal Leave</option>
+                  <option>Maternity/Paternity</option>
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Start Date</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>End Date</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({...formData, endDate: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Reason / Note</label>
+                <textarea 
+                  placeholder="Tell us why you need this time off..."
+                  rows="4"
+                  value={formData.note}
+                  onChange={(e) => setFormData({...formData, note: e.target.value})}
+                ></textarea>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary" disabled={submitting}>
+                  {submitting ? 'Submitting...' : 'Submit Application'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .attendance-page {
@@ -318,6 +589,94 @@ const Attendance = () => {
         .btn-white { background: white; color: #0f172a; padding: 0.75rem; border-radius: 8px; font-weight: 700; border: none; cursor: pointer; }
 
         .btn-xs { padding: 4px 10px; font-size: 0.7rem; }
+
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          backdrop-filter: blur(4px);
+        }
+
+        .modal-card {
+          background: white;
+          width: 100%;
+          max-width: 500px;
+          border-radius: 20px;
+          padding: 2rem;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 2rem;
+        }
+
+        .modal-header h2 { font-size: 1.5rem; font-weight: 800; }
+        .close-btn { background: none; border: none; cursor: pointer; color: #64748b; }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        
+        .form-group label {
+          display: block;
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin-bottom: 0.5rem;
+          text-transform: uppercase;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+          width: 100%;
+          padding: 0.75rem;
+          border-radius: 10px;
+          border: 1px solid #e2e8f0;
+          font-size: 0.9375rem;
+          outline: none;
+          margin-bottom: 1.25rem;
+        }
+
+        .modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 1rem;
+          margin-top: 1rem;
+        }
+
+        .status-label.danger { color: #ef4444; }
+        .text-muted { color: #64748b; }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        @media (max-width: 1024px) {
+          .attendance-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+          .page-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+          .log-header { display: none; }
+          .log-row {
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+          }
+          .user-info { grid-column: span 2; margin-bottom: 0.5rem; }
+          .time { font-size: 0.8rem; }
+          .week-strip { overflow-x: auto; padding-bottom: 1rem; justify-content: flex-start; gap: 0.5rem; }
+          .day-box { min-width: 50px; }
+          .filter-pills { overflow-x: auto; padding-bottom: 0.5rem; }
+        }
       `}</style>
     </div>
   );

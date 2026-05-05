@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }) => {
     return getAuth(secondaryApp);
   };
 
-  const addEmployee = async (email, fullName, role = 'employee') => {
+  const addEmployee = async (email, fullName, role = 'Developer', dept = 'Unassigned', salary = '0') => {
     const sAuth = getSecondaryAuth();
     const userCredential = await createUserWithEmailAndPassword(sAuth, email, email);
     const user = userCredential.user;
@@ -59,7 +59,8 @@ export const AuthProvider = ({ children }) => {
       fullName,
       role: email === SUPER_ADMIN_EMAIL ? 'superadmin' : role,
       createdAt: new Date().toISOString(),
-      dept: 'Unassigned',
+      dept,
+      salary,
       status: 'Active',
       failedAttempts: 0,
       lockoutUntil: null
@@ -110,10 +111,23 @@ export const AuthProvider = ({ children }) => {
       if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         const statusRef = doc(db, 'login_status', email);
         const snap = await getDoc(statusRef);
-        const attempts = snap.exists() ? (snap.data().failedAttempts || 0) + 1 : 1;
+        
+        let attempts = 1;
+        if (snap.exists()) {
+          const data = snap.data();
+          const lastAttempt = data.lastAttempt?.toDate() || new Date(0);
+          const hoursSinceLastAttempt = (new Date() - lastAttempt) / 3600000;
+          
+          // Reset counter if last attempt was more than 24 hours ago
+          if (hoursSinceLastAttempt > 24) {
+            attempts = 1;
+          } else {
+            attempts = (data.failedAttempts || 0) + 1;
+          }
+        }
         
         let lockoutUntil = null;
-        if (attempts >= 3) {
+        if (attempts >= 5) {
           lockoutUntil = Timestamp.fromDate(new Date(Date.now() + 30 * 60000));
         }
 
@@ -123,7 +137,7 @@ export const AuthProvider = ({ children }) => {
           lastAttempt: Timestamp.now()
         }, { merge: true });
 
-        if (attempts >= 3) {
+        if (attempts >= 5) {
           throw new Error('Too many failed attempts. Account locked for 30 minutes.');
         }
       }
@@ -167,7 +181,7 @@ export const AuthProvider = ({ children }) => {
              uid: user.uid,
              email: user.email,
              fullName: user.displayName || 'New User',
-             role: user.email === SUPER_ADMIN_EMAIL ? 'superadmin' : 'employee',
+             role: user.email === SUPER_ADMIN_EMAIL ? 'superadmin' : 'Developer',
              createdAt: new Date().toISOString(),
              dept: 'Unassigned',
              status: 'Active'

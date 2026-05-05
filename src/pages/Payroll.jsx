@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
   Play, 
@@ -7,23 +7,110 @@ import {
   Download,
   Filter,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
+import { db } from '../services/firebase';
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
 
 const Payroll = () => {
-  const payrollData = [];
+  const { userData, isSuperAdmin: authSuperAdmin, currentUser } = useAuth();
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeDept, setActiveDept] = useState('All Departments');
+
+  // Standardized role check
+  const userRole = userData?.role?.toLowerCase();
+  const isSuperAdmin = userRole === 'superadmin' || authSuperAdmin || currentUser?.email === 'syedsahilshah1@gmail.com'; // Adding hardcoded fallback for safety
+  const hasPayrollAccess = isSuperAdmin || userData?.permissions?.canViewPayroll === true;
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'), orderBy('fullName', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const emps = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+      setEmployees(emps);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const filteredEmployees = employees.filter(emp => 
+    (activeDept === 'All Departments' || emp.dept === activeDept) && emp.role?.toLowerCase() !== 'superadmin'
+  );
+
+  const handleUpdatePayrollStatus = async (uid, newStatus) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, { payrollStatus: newStatus });
+    } catch (err) {
+      console.error('Error updating payroll status:', err);
+    }
+  };
+
+  const handleRunPayroll = async () => {
+    if (filteredEmployees.length === 0) return;
+    if (!window.confirm(`Are you sure you want to process payroll for ${filteredEmployees.length} employees in ${activeDept}?`)) return;
+    
+    try {
+      const batch = writeBatch(db);
+      filteredEmployees.forEach(emp => {
+        const userRef = doc(db, 'users', emp.uid);
+        batch.update(userRef, { payrollStatus: 'Paid' });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error('Error running payroll:', err);
+    }
+  };
+
+  const totalPayroll = filteredEmployees.reduce((sum, emp) => sum + (Number(emp.salary) || 0), 0);
+  const processedCount = filteredEmployees.filter(emp => emp.payrollStatus === 'Paid').length;
+  const pendingCount = filteredEmployees.length - processedCount;
+
+  const handleExportCSV = () => {
+    if (filteredEmployees.length === 0) return alert('No data to export');
+    const headers = ["Employee Name", "Department", "Salary", "Status"];
+    const rows = filteredEmployees.map(emp => [
+      `"${emp.fullName}"`,
+      `"${emp.dept || 'Unassigned'}"`,
+      `"${emp.salary || 0}"`,
+      `"${emp.payrollStatus || 'Pending'}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `payroll_report_${activeDept.replace(' ', '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (!hasPayrollAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+        <Clock size={48} className="text-muted mb-4" />
+        <h2 className="text-2xl font-bold">Access Restricted</h2>
+        <p className="text-muted max-w-md mx-auto">You do not have permission to view payroll information. Please contact your administrator.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="payroll-page">
       <header className="page-header">
         <div className="header-left">
           <h1>Payroll Overview</h1>
-          <p>Summary for the period of October 2023</p>
+          <p>Summary for the period of {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
         </div>
         <div className="header-actions">
-          <button className="btn-outline">Generate Reports</button>
-          <button className="btn-primary flex-row gap-2">
-            <Play size={16} fill="currentColor" />
+          <button className="btn-outline" onClick={handleExportCSV}>
+            <Download size={18} />
+            <span>Generate Reports</span>
+          </button>
+          <button className="btn-primary flex-row gap-2" onClick={handleRunPayroll}>
+            <CheckCircle size={16} fill="currentColor" />
             Run Payroll
           </button>
         </div>
@@ -32,24 +119,24 @@ const Payroll = () => {
       <div className="stats-row">
         <div className="card stat-card wide">
           <p className="stat-label">TOTAL MONTHLY COMPENSATION</p>
-          <h2 className="stat-value">$0.00</h2>
+          <h2 className="stat-value">${totalPayroll.toLocaleString()}</h2>
           <div className="progress-bar">
-            <div className="progress" style={{ width: '0%' }}></div>
+            <div className="progress" style={{ width: '45%' }}></div>
           </div>
-          <p className="progress-label">0% of Budget</p>
+          <p className="progress-label">45% of Budget</p>
         </div>
         <div className="card stat-card compact">
           <div className="icon-box green"><CheckCircle size={20} /></div>
           <div className="stat-info">
              <p className="stat-label">Processed</p>
-             <h3 className="stat-value-small">0 Employees</h3>
+             <h3 className="stat-value-small">{processedCount} Employees</h3>
           </div>
         </div>
         <div className="card stat-card compact">
           <div className="icon-box orange"><Clock size={20} /></div>
           <div className="stat-info">
              <p className="stat-label">Pending</p>
-             <h3 className="stat-value-small">0 Employees</h3>
+             <h3 className="stat-value-small">{pendingCount} Employees</h3>
           </div>
         </div>
       </div>
@@ -57,58 +144,90 @@ const Payroll = () => {
       <div className="card table-card">
         <div className="table-header">
           <h3>Employee Payment Details</h3>
-          <button className="btn-outline btn-sm">
-            <Filter size={14} />
-            All Departments
-          </button>
+          <div className="flex gap-2">
+            {['All Departments', 'Development', 'Design', 'Marketing', 'Sales', 'HR'].map(dept => (
+              <button 
+                key={dept}
+                className={`btn-outline btn-sm ${activeDept === dept ? 'active-pill' : ''}`}
+                onClick={() => setActiveDept(dept)}
+              >
+                {dept}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>EMPLOYEE</th>
-                <th>DEPARTMENT</th>
-                <th>SALARY AMOUNT</th>
-                <th>STATUS</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payrollData.map((row, idx) => (
-                <tr key={idx}>
-                  <td>
-                    <div className="user-cell">
-                      <div className="avatar-sm">{row.name.charAt(0)}</div>
-                      <div className="user-meta">
-                        <p className="user-name">{row.name}</p>
-                        <p className="user-email">{row.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{row.dept}</td>
-                  <td className="font-bold">{row.amount}</td>
-                  <td>
-                    <span className={`badge ${row.status === 'Paid' ? 'badge-success' : 'badge-warning'}`}>
-                      {row.status.toUpperCase()}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="download-btn">
-                      <Download size={16} />
-                      Payslip
-                    </button>
-                  </td>
+          {loading ? (
+            <div className="flex items-center justify-center p-12 text-muted">
+              <Loader2 className="animate-spin mr-2" /> Loading payroll data...
+            </div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>EMPLOYEE</th>
+                  <th>DEPARTMENT</th>
+                  <th>SALARY AMOUNT</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredEmployees.map((emp) => (
+                  <tr key={emp.uid}>
+                    <td>
+                      <div className="user-cell">
+                        <div className="avatar-sm">{emp.fullName?.charAt(0)}</div>
+                        <div className="user-meta">
+                          <p className="user-name">{emp.fullName}</p>
+                          <p className="user-email">{emp.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{emp.dept}</td>
+                    <td className="font-bold">${Number(emp.salary || 0).toLocaleString()}</td>
+                    <td>
+                      <span className={`badge ${emp.payrollStatus === 'Paid' ? 'badge-success' : 'badge-warning'}`}>
+                        {(emp.payrollStatus || 'Pending').toUpperCase()}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="flex gap-2">
+                        {emp.payrollStatus !== 'Paid' ? (
+                          <button 
+                            className="btn-action-success"
+                            onClick={() => handleUpdatePayrollStatus(emp.uid, 'Paid')}
+                          >
+                            <CheckCircle size={14} />
+                            Pay
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn-action-neutral"
+                            onClick={() => handleUpdatePayrollStatus(emp.uid, 'Pending')}
+                          >
+                            Reset
+                          </button>
+                        )}
+                        <button className="download-btn">
+                          <Download size={14} />
+                          Payslip
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredEmployees.length === 0 && (
+                  <tr>
+                    <td colSpan="5" className="text-center py-12 text-muted">No employees found for this department.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
         <div className="table-footer">
-          <p>No records found</p>
-          <div className="pagination">
-            <button className="page-btn"><ChevronLeft size={16} /></button>
-            <button className="page-btn"><ChevronRight size={16} /></button>
-          </div>
+          <p>Showing {filteredEmployees.length} employees</p>
         </div>
       </div>
 
@@ -340,6 +459,24 @@ const Payroll = () => {
         .trend-chart .bar.dark { background: #0f172a; }
 
         .text-muted { color: #64748b; font-size: 0.8125rem; }
+
+        @media (max-width: 1024px) {
+          .stats-grid { grid-template-columns: 1fr 1fr; }
+          .bottom-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+          .table-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+          .tabs { 
+            overflow-x: auto; 
+            width: 100%;
+            padding-bottom: 0.5rem;
+            justify-content: flex-start;
+          }
+          .stats-grid { grid-template-columns: 1fr; }
+          .table-container { margin: 0 -1.5rem; }
+          table { min-width: 600px; }
+        }
       `}</style>
     </div>
   );

@@ -1,9 +1,9 @@
 import React from 'react';
-import { Search, User, LogOut } from 'lucide-react';
+import { Search, User, LogOut, Menu } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-const Navbar = () => {
+const Navbar = ({ onMenuClick }) => {
   const { isSuperAdmin, userData, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -19,16 +19,26 @@ const Navbar = () => {
   return (
     <header className="navbar">
       <div className="navbar-brand">
-        <h2 className="brand-text">HR Portal</h2>
+        <button className="menu-toggle" onClick={onMenuClick}>
+          <Menu size={20} />
+        </button>
+        <h2 className="brand-text">
+          {isSuperAdmin || userData?.role?.toLowerCase() === 'admin' ? 'HR Portal' : 'Staff Portal'}
+        </h2>
       </div>
 
       <nav className="navbar-links">
         <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Dashboard</NavLink>
-        <NavLink to="/employees" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Directory</NavLink>
+        
+        {/* Only show Directory to admins/superadmins */}
+        {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
+          <NavLink to="/employees" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Directory</NavLink>
+        )}
+
         <NavLink to="/attendance" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Leave</NavLink>
         
         {/* Only show Payroll to admins/superadmins */}
-        {(isSuperAdmin || userData?.role === 'admin') && (
+        {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
           <NavLink to="/payroll" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Payroll</NavLink>
         )}
 
@@ -39,7 +49,7 @@ const Navbar = () => {
       </nav>
 
       <div className="navbar-actions">
-        <button className="icon-btn" title="Search">
+        <button className="icon-btn search-nav-btn" title="Search">
           <Search size={20} />
         </button>
         <button className="icon-btn logout-nav-btn" onClick={handleLogout} title="Logout">
@@ -64,6 +74,27 @@ const Navbar = () => {
           z-index: 40;
           background: white;
           border-bottom: 1px solid #f1f5f9;
+        }
+
+        .navbar-brand {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .menu-toggle {
+          display: none;
+          background: transparent;
+          border: none;
+          color: #64748b;
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 8px;
+        }
+
+        .menu-toggle:hover {
+          background: #f1f5f9;
+          color: #0f172a;
         }
 
         .brand-text {
@@ -157,6 +188,21 @@ const Navbar = () => {
         .user-profile-link:hover .user-profile-img {
           box-shadow: 0 0 0 1px #cbd5e1;
           transform: scale(1.05);
+        }
+
+        @media (max-width: 1024px) {
+          .navbar {
+            padding: 0 1rem;
+          }
+          .menu-toggle {
+            display: flex;
+          }
+          .navbar-links {
+            display: none;
+          }
+          .search-nav-btn {
+            display: none;
+          }
         }
       `}</style>
     </header>

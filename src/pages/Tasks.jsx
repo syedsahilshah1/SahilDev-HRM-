@@ -13,7 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { db } from '../services/firebase';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
 const Tasks = () => {
@@ -22,6 +22,8 @@ const Tasks = () => {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -34,7 +36,7 @@ const Tasks = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const { userData, isSuperAdmin } = useAuth();
+  const { currentUser, userData, isSuperAdmin } = useAuth();
 
   useEffect(() => {
     // Fetch Tasks
@@ -57,6 +59,26 @@ const Tasks = () => {
       unsubscribeEmps();
     };
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuId(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  const deleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
+    try {
+      setDeletingId(taskId);
+      await deleteDoc(doc(db, 'tasks', taskId));
+      setOpenMenuId(null);
+    } catch (err) {
+      console.error('Error deleting task:', err);
+      alert('Failed to delete task.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleAddTask = async (e) => {
     e.preventDefault();
@@ -160,7 +182,33 @@ const Tasks = () => {
               <div className="task-header">
                 <span className="priority-dot" style={{ background: getPriorityColor(task.priority) }}></span>
                 <span className="priority-label">{task.priority}</span>
-                <button className="btn-more"><MoreVertical size={16} /></button>
+                <div className="menu-container">
+                  <button 
+                    className="btn-more"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setOpenMenuId(prev => prev === task.id ? null : task.id);
+                    }}
+                    title="Task options"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                  {openMenuId === task.id && (
+                    <div className="dropdown-menu">
+                      {(isSuperAdmin || userData?.role === 'admin') && (
+                        <button 
+                          className="menu-item delete"
+                          onClick={() => deleteTask(task.id)}
+                          disabled={deletingId === task.id}
+                        >
+                          {deletingId === task.id ? 'Deleting...' : 'Delete Task'}
+                        </button>
+                      )}
+                      <button className="menu-item" onClick={() => setOpenMenuId(null)}>Close</button>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <h3 className="task-title">{task.title}</h3>
@@ -184,7 +232,7 @@ const Tasks = () => {
                 </div>
                 
                 <div className="task-actions">
-                  {task.status !== 'Completed' && (
+                  {task.status !== 'Completed' && task.assignedTo === currentUser?.uid && (
                     <button 
                       className="btn-action-small"
                       onClick={() => updateTaskStatus(task.id, task.status === 'To-do' ? 'In Progress' : 'Completed')}
@@ -392,6 +440,7 @@ const Tasks = () => {
           display: flex;
           align-items: center;
           gap: 0.5rem;
+          position: relative;
         }
 
         .priority-dot {
@@ -414,7 +463,44 @@ const Tasks = () => {
           border: none;
           color: #94a3b8;
           cursor: pointer;
+          padding: 4px;
+          border-radius: 6px;
         }
+
+        .btn-more:hover { background: #f1f5f9; color: #0f172a; }
+
+        .menu-container { position: relative; }
+
+        .dropdown-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+          z-index: 20;
+          min-width: 140px;
+          padding: 0.5rem;
+          margin-top: 4px;
+        }
+
+        .menu-item {
+          width: 100%;
+          text-align: left;
+          padding: 0.625rem 0.75rem;
+          background: transparent;
+          border: none;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: #475569;
+          cursor: pointer;
+          border-radius: 8px;
+        }
+
+        .menu-item:hover { background: #f8fafc; color: #0f172a; }
+        .menu-item.delete { color: #ef4444; }
+        .menu-item.delete:hover { background: #fef2f2; }
 
         .task-title {
           font-size: 1.125rem;
@@ -560,6 +646,17 @@ const Tasks = () => {
         .text-warning { color: #f59e0b; }
         .text-muted { color: #94a3b8; }
         .mb-4 { margin-bottom: 1rem; }
+
+        @media (max-width: 1024px) {
+          .tasks-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 640px) {
+          .page-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+          .header-actions { width: 100%; justify-content: flex-start; }
+          .task-meta { flex-direction: column; gap: 0.5rem; }
+          .modal-content { padding: 1.5rem; border-radius: 16px; }
+        }
       `}</style>
     </div>
   );

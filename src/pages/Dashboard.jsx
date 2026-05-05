@@ -12,53 +12,150 @@ import {
   X,
   UserPlus,
   Bell,
-  CheckCircle
+  CheckCircle,
+  MapPin,
+  LogIn,
+  LogOut,
+  MoreVertical
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { userData, isSuperAdmin } = useAuth();
   const [stats, setStats] = useState({
     totalEmployees: 0,
-    activeTasks: 0
+    activeTasks: 0,
+    pendingLeaves: 0
   });
 
+  const [todayRecord, setTodayRecord] = useState(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
   useEffect(() => {
-    // Total Employees
+    if (!userData?.uid) return;
+    const today = new Date().toISOString().split('T')[0];
+    const q = query(
+      collection(db, 'daily_attendance'),
+      where('userId', '==', userData.uid),
+      where('date', '==', today)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        setTodayRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+      } else {
+        setTodayRecord(null);
+      }
+    });
+    return unsubscribe;
+  }, [userData?.uid]);
+
+  const handleAttendance = async (type) => {
+    if (!userData?.uid) return;
+    setAttendanceLoading(true);
+    try {
+      // Get public IP
+      let ip = 'Unknown';
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        ip = ipData.ip;
+      } catch (e) {
+        console.warn("IP fetch failed:", e);
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+
+      if (type === 'check-in') {
+        await addDoc(collection(db, 'daily_attendance'), {
+          userId: userData.uid,
+          userName: userData.fullName || userData.displayName || 'Staff Member',
+          date: today,
+          checkIn: Timestamp.now(),
+          checkInIp: ip,
+          status: 'Present',
+          createdAt: Timestamp.now()
+        });
+      } else if (type === 'check-out' && todayRecord?.id) {
+        await updateDoc(doc(db, 'daily_attendance', todayRecord.id), {
+          checkOut: Timestamp.now(),
+          checkOutIp: ip
+        });
+      }
+    } catch (error) {
+      console.error("Attendance Error:", error);
+      alert(`Failed to record attendance: ${error.message}`);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+
+  useEffect(() => {
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       setStats(prev => ({ ...prev, totalEmployees: snapshot.size }));
     });
 
-    // Active Tasks
     const unsubscribeTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
       setStats(prev => ({ ...prev, activeTasks: snapshot.size }));
+    });
+
+    const q = query(collection(db, 'leave_applications'), where('status', '==', 'PENDING'));
+    const unsubscribeLeaves = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        name: doc.data().userName,
+        image: `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.data().userName)}&background=random`,
+        type: doc.data().type,
+        duration: `${doc.data().startDate} - ${doc.data().endDate}`,
+        ...doc.data() 
+      }));
+      setPendingApprovals(data);
     });
 
     return () => {
       unsubscribeUsers();
       unsubscribeTasks();
+      unsubscribeLeaves();
     };
   }, []);
   return (
     <div className="dashboard">
       <header className="dashboard-header">
-        <h1>Good morning, {userData?.fullName?.split(' ')[0] || 'Member'}.</h1>
-        <p>Manage your project team and pending administrative tasks.</p>
+        <div className="header-left">
+          <h1>Good morning, {userData?.fullName?.split(' ')[0] || 'Member'}.</h1>
+          <p>Manage your project team and pending administrative tasks.</p>
+        </div>
+        {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
+          <button className="btn-primary" onClick={() => navigate('/employees')}>
+            <UserPlus size={18} />
+            <span>Add Member</span>
+          </button>
+        )}
       </header>
 
       <div className="dashboard-grid">
         <div className="main-content-col">
-          <div className="card team-overview-card">
+          <div className="card team-overview-card cursor-pointer hover:shadow-md transition-all" onClick={() => navigate('/employees')}>
             <div className="card-header-row">
               <div className="card-title-group">
                 <h3>Team Overview</h3>
                 <p className="project-tag">PROJECT: APOLLO PHASE II</p>
               </div>
-              <Users size={24} className="text-blue" />
+              <div className="flex items-center gap-2">
+                <Users size={24} className="text-blue" />
+                <button 
+                  className="p-1 hover:bg-slate-100 rounded-full transition-colors" 
+                  title="Team Options"
+                  onClick={(e) => { e.stopPropagation(); alert('Quick Actions: Filter, Sort, or Export team data.'); }}
+                >
+                  <MoreVertical size={20} className="text-slate-400" />
+                </button>
+              </div>
             </div>
             
             <div className="stats-row">
@@ -92,31 +189,78 @@ const Dashboard = () => {
           <div className="approvals-section">
             <div className="section-header">
               <h3>Pending Approvals</h3>
-              <button className="text-link blue">View All</button>
+              <button className="text-link blue" onClick={() => navigate('/attendance')}>View All</button>
             </div>
             <div className="approvals-list">
-              {[].map((item, idx) => (
-                <div key={idx} className="card approval-item">
-                  <div className="user-info">
-                    <img src={item.image} alt={item.name} />
-                    <div>
-                      <p className="font-bold">{item.name}</p>
-                      <p className="text-muted text-sm">{item.type} • {item.duration}</p>
+              {pendingApprovals.length > 0 ? (
+                pendingApprovals.slice(0, 3).map((item) => (
+                  <div key={item.id} className="card approval-item">
+                    <div className="user-info">
+                      <img src={item.image} alt={item.name} className="avatar-xs" />
+                      <div>
+                        <p className="font-bold">{item.name}</p>
+                        <p className="text-muted text-sm">{item.type} • {item.duration}</p>
+                      </div>
+                    </div>
+                    <div className="action-buttons">
+                      <button className="btn-icon-danger" onClick={() => navigate('/attendance')} title="Reject"><X size={18} /></button>
+                      <button className="btn-icon-success" onClick={() => navigate('/attendance')} title="Approve"><Check size={18} /></button>
                     </div>
                   </div>
-                  <div className="action-buttons">
-                    <button className="btn-icon-danger"><X size={18} /></button>
-                    <button className="btn-icon-success"><Check size={18} /></button>
-                  </div>
+                ))
+              ) : (
+                <div className="empty-state py-6 text-center text-muted">
+                  <p>No pending applications for review.</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
 
         <div className="sidebar-col">
+          <div className="card attendance-card mb-6">
+            <div className="card-header-row">
+              <h3>Daily Attendance</h3>
+              <MapPin size={20} className="text-blue" />
+            </div>
+            <p className="text-sm text-muted mb-4">Mark your check-in/out for today.</p>
+            
+            {!todayRecord ? (
+              <button 
+                className="btn-primary w-full flex items-center justify-center gap-2"
+                onClick={() => handleAttendance('check-in')}
+                disabled={attendanceLoading}
+              >
+                <LogIn size={18} />
+                {attendanceLoading ? 'Checking In...' : 'Check In'}
+              </button>
+            ) : !todayRecord.checkOut ? (
+              <div className="flex flex-col gap-3">
+                <div className="check-in-info p-3 bg-blue-50 rounded-lg">
+                  <p className="text-xs font-bold text-blue-600 uppercase">Checked In At</p>
+                  <p className="text-lg font-bold">{new Date(todayRecord.checkIn.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                <button 
+                  className="btn-outline w-full flex items-center justify-center gap-2"
+                  style={{ borderColor: '#fee2e2', color: '#ef4444' }}
+                  onClick={() => handleAttendance('check-out')}
+                  disabled={attendanceLoading}
+                >
+                  <LogOut size={18} />
+                  {attendanceLoading ? 'Checking Out...' : 'Check Out'}
+                </button>
+              </div>
+            ) : (
+              <div className="attendance-complete p-4 bg-green-50 rounded-lg text-center" style={{ backgroundColor: '#f0fdf4' }}>
+                <CheckCircle className="mx-auto text-green-500 mb-2" size={32} />
+                <p className="font-bold text-green-700">Day Completed</p>
+                <p className="text-xs text-green-600">See you tomorrow!</p>
+              </div>
+            )}
+          </div>
+
           <div className="quick-actions-grid">
-            {isSuperAdmin && (
+            {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
               <div className="card action-card dark" onClick={() => navigate('/employees')}>
                 <ShieldCheck size={24} />
                 <span>Manage Roles</span>
@@ -126,11 +270,11 @@ const Dashboard = () => {
               <ClipboardCheck size={24} className="text-blue" />
               <span>Assign Tasks</span>
             </div>
-            <div className="card action-card" onClick={() => alert('Team Logs module coming soon!')}>
+            <div className="card action-card" onClick={() => navigate('/attendance')}>
               <History size={24} className="text-blue" />
               <span>Team Logs</span>
             </div>
-            <div className="card action-card" onClick={() => alert('Report Generation module coming soon!')}>
+            <div className="card action-card" onClick={() => navigate('/attendance')}>
               <FileBarChart size={24} className="text-blue" />
               <span>Generate Report</span>
             </div>
@@ -160,6 +304,12 @@ const Dashboard = () => {
           display: flex;
           flex-direction: column;
           gap: 2rem;
+        }
+
+        .dashboard-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
 
         .dashboard-header h1 {
@@ -423,8 +573,48 @@ const Dashboard = () => {
           color: #94a3b8;
         }
 
+        .attendance-card {
+          padding: 1.5rem;
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+        }
+
+        .check-in-info {
+          background: #eff6ff;
+          border-left: 4px solid #3b82f6;
+          padding: 1rem;
+          border-radius: 8px;
+        }
+
+        .attendance-complete {
+          background: #f0fdf4;
+          border: 1px solid #bbf7d0;
+          padding: 1.5rem;
+          border-radius: 12px;
+        }
+
+
         @media (max-width: 1200px) {
           .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 1024px) {
+          .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 640px) {
+          .stats-grid { grid-template-columns: 1fr; }
+          .quick-actions-grid { grid-template-columns: 1fr; }
+          .page-header {
+             flex-direction: column;
+             align-items: flex-start;
+             gap: 1rem;
+          }
+          .header-actions {
+             width: 100%;
+             justify-content: flex-start;
+          }
         }
       `}</style>
     </div>

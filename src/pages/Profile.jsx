@@ -81,12 +81,14 @@ const Profile = () => {
     <div className="profile-page">
       <header className="profile-header">
         <div className="header-top">
-          <Link to="/employees" className="back-btn"><ChevronLeft size={20} /> EMPLOYEE DIRECTORY</Link>
+          <Link to="/employees" className="back-btn"><ChevronLeft size={20} /> STAFF DIRECTORY</Link>
           <div className="action-buttons">
             <button className="btn-outline" onClick={() => setShowEditModal(true)}>
               <Edit3 size={16} /> Edit Profile
             </button>
-            <button className="btn-danger"><UserMinus size={16} /> Deactivate</button>
+            {(userData?.role?.toLowerCase() === 'admin' || userData?.role?.toLowerCase() === 'superadmin') && (
+              <button className="btn-danger"><UserMinus size={16} /> Deactivate</button>
+            )}
           </div>
         </div>
 
@@ -103,7 +105,7 @@ const Profile = () => {
           </div>
           <div className="profile-main-info">
             <h1>{userData?.fullName || 'User Name'}</h1>
-            <p className="title">{userData?.role || 'Employee'} • {userData?.dept || 'Unassigned'}</p>
+            <p className="title">{userData?.role || 'Staff'} • {userData?.dept || 'Unassigned'}</p>
             
             <div className="info-grid">
                <div className="info-item">
@@ -111,7 +113,7 @@ const Profile = () => {
                   <p>{userData?.dept || 'General'}</p>
                </div>
                <div className="info-item">
-                  <span className="label">EMPLOYEE ID</span>
+                  <span className="label">STAFF ID</span>
                   <p>EMP-{currentUser?.uid.slice(0, 5).toUpperCase()}</p>
                </div>
                <div className="info-item">
@@ -134,7 +136,7 @@ const Profile = () => {
                 <span className="label">ANNUAL SALARY</span>
                 <Wallet size={20} className="text-muted" />
              </div>
-             <h2 className="salary-value">$98,500.00</h2>
+             <h2 className="salary-value">${Number(userData?.salary || 0).toLocaleString()}</h2>
              <p className="next-review">Next Review: Nov 2024</p>
           </div>
 
@@ -298,6 +300,18 @@ const Profile = () => {
         .modal-input { width: 100%; padding: 0.875rem; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 1rem; outline: none; background: #f8fafc; margin-top: 0.5rem; }
         .submit-btn { width: 100%; padding: 1rem; background: #000; color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 1.5rem; }
         .alert-error { background: #fef2f2; color: #ef4444; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.875rem; font-weight: 600; }
+
+        @media (max-width: 1024px) {
+          .profile-grid { grid-template-columns: 1fr; }
+          .profile-hero { flex-direction: column; text-align: center; gap: 1.5rem; }
+          .info-grid { justify-content: center; gap: 2rem; }
+        }
+
+        @media (max-width: 640px) {
+          .header-top { flex-direction: column; gap: 1rem; align-items: flex-start; }
+          .info-grid { flex-direction: column; gap: 1rem; }
+          .modal-content { padding: 1.5rem; }
+        }
       `}</style>
     </div>
   );

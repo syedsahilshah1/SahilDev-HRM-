@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, ChevronRight, X, MoreVertical } from 'lucide-react';
+import { Search, Plus, ChevronRight, X, Trash2, UserX, UserCheck, MoreVertical } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
@@ -10,12 +10,13 @@ const Employees = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Form State
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     role: 'Developer',
-    dept: 'Development'
+    dept: 'Development',
+    salary: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -26,7 +27,12 @@ const Employees = () => {
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('fullName', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const emps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const emps = snapshot.docs.map(doc => ({ 
+        uid: doc.id, 
+        ...doc.data(),
+        role: doc.data().role?.toLowerCase() || 'developer',
+        dept: doc.data().dept || 'Unassigned'
+      }));
       setEmployees(emps);
       setLoading(false);
     });
@@ -40,9 +46,9 @@ const Employees = () => {
     try {
       setError('');
       setSubmitting(true);
-      await addEmployee(formData.email, formData.fullName, formData.role);
+      await addEmployee(formData.email, formData.fullName, formData.role, formData.dept, formData.salary);
       setShowAddModal(false);
-      setFormData({ fullName: '', email: '', role: 'Developer', dept: 'Development' });
+      setFormData({ fullName: '', email: '', role: 'Developer', dept: 'Development', salary: '' });
     } catch (err) {
       setError('Failed to add employee: ' + err.message);
     } finally {
@@ -62,9 +68,36 @@ const Employees = () => {
   const handleUpdateUserRole = async (uid, newRole) => {
     try {
       const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, { role: newRole });
+      await updateDoc(userRef, { role: newRole.toLowerCase() });
     } catch (err) {
       console.error('Error updating role:', err);
+    }
+  };
+
+  const handleUpdateUserDept = async (uid, newDept) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, { dept: newDept });
+    } catch (err) {
+      console.error('Error updating department:', err);
+    }
+  };
+
+  const handleUpdateUserPermission = async (uid, permissionKey, value) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, { [`permissions.${permissionKey}`]: value });
+    } catch (err) {
+      console.error('Error updating permission:', err);
+    }
+  };
+
+  const handleUpdateUserSalary = async (uid, newSalary) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, { salary: newSalary });
+    } catch (err) {
+      console.error('Error updating salary:', err);
     }
   };
 
@@ -78,24 +111,37 @@ const Employees = () => {
     }
   };
 
-  const filteredEmployees = employees.filter(emp => 
-    activeTab === 'All Teams' || emp.dept === activeTab || emp.role.toLowerCase() === activeTab.toLowerCase()
-  );
-
   return (
     <div className="employees-page">
-      <div className="search-container">
-        <div className="search-box">
-          <Search size={22} className="search-icon" />
-          <input type="text" placeholder="Search employees..." />
+      <header className="page-header">
+        <div className="header-left">
+          <h1>Employee Directory</h1>
+          <p>Manage your organization's members, roles, and compensation.</p>
         </div>
-      </div>
+        <div className="header-actions">
+           <div className="search-bar">
+             <Search size={18} />
+             <input 
+               type="text" 
+               placeholder="Search..." 
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+             />
+           </div>
+           {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
+             <button className="btn-primary add-btn-desktop" onClick={() => setShowAddModal(true)}>
+               <Plus size={18} />
+               <span>Add Member</span>
+             </button>
+           )}
+        </div>
+      </header>
 
-      <div className="filter-scroll">
+      <div className="tabs">
         {teams.map(team => (
           <button 
-            key={team} 
-            className={`filter-chip ${activeTab === team ? 'active' : ''}`}
+            key={team}
+            className={`tab ${activeTab === team ? 'active' : ''}`}
             onClick={() => setActiveTab(team)}
           >
             {team}
@@ -105,9 +151,20 @@ const Employees = () => {
 
       <div className="employee-list">
         {loading ? (
-          <p className="text-center py-10 text-muted">Loading employees...</p>
-        ) : filteredEmployees.length > 0 ? (
-          filteredEmployees.map((emp) => (
+          <div className="flex items-center justify-center py-20 text-muted">
+            <div className="animate-spin mr-3"><Search size={24} /></div>
+            Loading team members...
+          </div>
+        ) : employees.filter(emp => 
+            (activeTab === 'All Teams' || emp.dept === activeTab) &&
+            (emp.fullName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || 
+             emp.email?.toLowerCase()?.includes(searchTerm.toLowerCase()))
+          ).length > 0 ? (
+          employees
+            .filter(emp => (activeTab === 'All Teams' || emp.dept === activeTab) &&
+                           (emp.fullName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || 
+                            emp.email?.toLowerCase()?.includes(searchTerm.toLowerCase())))
+            .map((emp) => (
             <div key={emp.uid} className="employee-list-item card">
               <div className="emp-main">
                 <div className="emp-photo">
@@ -116,7 +173,7 @@ const Employees = () => {
                 </div>
                 <div className="emp-info">
                   <h3>{emp.fullName}</h3>
-                  <p>{emp.role} • {emp.dept}</p>
+                  <p>{emp.role} • {emp.dept} {emp.salary ? `• $${emp.salary}` : ''}</p>
                 </div>
               </div>
               <div className="emp-right">
@@ -126,33 +183,70 @@ const Employees = () => {
                   </span>
                 </div>
                 
-                {isSuperAdmin && emp.role !== 'superadmin' && (
+                {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && emp.role?.toLowerCase() !== 'superadmin' && (
                   <div className="admin-controls">
                     <select 
                       className="role-selector-mini"
-                      value={emp.role}
+                      value={emp.role.charAt(0).toUpperCase() + emp.role.slice(1)}
                       onChange={(e) => handleUpdateUserRole(emp.uid, e.target.value)}
                     >
-                      <option>Admin</option>
-                      <option>Manager</option>
-                      <option>Developer</option>
-                      <option>Project Manager</option>
-                      <option>Team Lead</option>
-                      <option>Designer</option>
-                      <option>HR</option>
+                      <option value="admin">Admin</option>
+                      <option value="manager">Manager</option>
+                      <option value="developer">Developer</option>
+                      <option value="project manager">Project Manager</option>
+                      <option value="team lead">Team Lead</option>
+                      <option value="designer">Designer</option>
+                      <option value="hr">HR</option>
                     </select>
+                    <select 
+                      className="role-selector-mini"
+                      value={emp.dept}
+                      onChange={(e) => handleUpdateUserDept(emp.uid, e.target.value)}
+                    >
+                      {teams.filter(t => t !== 'All Teams').map(t => (
+                        <option key={t}>{t}</option>
+                      ))}
+                    </select>
+                    <input 
+                      type="number" 
+                      className="salary-input-mini"
+                      placeholder="Salary"
+                      value={emp.salary || ''}
+                      onChange={(e) => handleUpdateUserSalary(emp.uid, e.target.value)}
+                    />
+                    {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
+                      <div className="permission-toggle">
+                        <label className="switch">
+                          <input 
+                            type="checkbox" 
+                            checked={emp.permissions?.canViewPayroll || false}
+                            onChange={(e) => handleUpdateUserPermission(emp.uid, 'canViewPayroll', e.target.checked)}
+                          />
+                          <span className="slider round"></span>
+                        </label>
+                        <span className="permission-label">Payroll Access</span>
+                      </div>
+                    )}
                     <button 
                       className={`btn-status ${emp.status === 'Active' ? 'deactivate' : 'activate'}`}
                       onClick={() => handleUpdateUserStatus(emp.uid, emp.status === 'Active' ? 'Deactivated' : 'Active')}
                     >
-                      {emp.status === 'Active' ? 'Deactivate' : 'Activate'}
+                      {emp.status === 'Active' ? (
+                        <><UserX size={14} /> <span>Deactivate</span></>
+                      ) : (
+                        <><UserCheck size={14} /> <span>Activate</span></>
+                      )}
                     </button>
-                    <button className="btn-delete" onClick={() => handleDeleteUser(emp.uid)}>
-                      <X size={14} />
+                    <button className="btn-delete" onClick={() => handleDeleteUser(emp.uid)} title="Permanently Remove User">
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 )}
-                <ChevronRight size={20} className="chevron" />
+                <div className="emp-actions-end">
+                  <div className="p-2 hover:bg-slate-100 rounded-full cursor-pointer">
+                    <MoreVertical size={18} className="text-slate-400" />
+                  </div>
+                </div>
               </div>
             </div>
           ))
@@ -161,7 +255,7 @@ const Employees = () => {
         )}
       </div>
 
-      {isSuperAdmin && (
+      {(isSuperAdmin || userData?.role === 'admin') && (
         <button className="fab-add" onClick={() => setShowAddModal(true)}>
           <Plus size={24} />
         </button>
@@ -209,13 +303,13 @@ const Employees = () => {
                     value={formData.role}
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
                   >
-                    <option>Admin</option>
-                    <option>Manager</option>
-                    <option>Developer</option>
-                    <option>Project Manager</option>
-                    <option>Team Lead</option>
-                    <option>Designer</option>
-                    <option>HR</option>
+                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
+                    <option value="developer">Developer</option>
+                    <option value="project manager">Project Manager</option>
+                    <option value="team lead">Team Lead</option>
+                    <option value="designer">Designer</option>
+                    <option value="hr">HR</option>
                   </select>
                 </div>
                 <div className="form-group flex-1">
@@ -236,6 +330,17 @@ const Employees = () => {
                 </div>
               </div>
               
+              <div className="form-group">
+                <label>Base Salary (Monthly)</label>
+                <input 
+                  type="number" 
+                  className="modal-input" 
+                  placeholder="e.g. 5000"
+                  value={formData.salary}
+                  onChange={(e) => setFormData({...formData, salary: e.target.value})}
+                />
+              </div>
+              
               <button type="submit" className="submit-btn" disabled={submitting}>
                 {submitting ? 'Creating Account...' : 'Add Member'}
               </button>
@@ -254,33 +359,41 @@ const Employees = () => {
           padding-bottom: 5rem;
         }
 
-        .search-container {
-          position: sticky;
-          top: 0;
-          background: #f8fafc;
-          padding: 1rem 0;
-          z-index: 10;
+        .page-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 1.5rem;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
         }
 
-        .search-box {
+        .header-actions {
+          display: flex;
+          gap: 1rem;
+          align-items: center;
+          flex: 1;
+          justify-content: flex-end;
+          min-width: 300px;
+        }
+
+        .search-bar {
           display: flex;
           align-items: center;
           gap: 1rem;
           background: white;
-          padding: 1rem 1.5rem;
-          border-radius: 16px;
+          padding: 0.75rem 1.25rem;
+          border-radius: 12px;
           border: 1px solid #e2e8f0;
+          flex: 1;
         }
 
-        .search-icon { color: #94a3b8; }
-
-        .search-box input {
+        .search-bar input {
           width: 100%;
           border: none;
           outline: none;
-          font-size: 1.125rem;
-          font-weight: 500;
-          color: #1e293b;
+          font-size: 0.9375rem;
+          background: transparent;
         }
 
         .filter-scroll {
@@ -321,12 +434,14 @@ const Employees = () => {
           justify-content: space-between;
           align-items: center;
           padding: 1.25rem 1.5rem;
-          cursor: pointer;
-          transition: transform 0.2s ease;
+          transition: all 0.2s ease;
+          flex-wrap: wrap;
+          gap: 1.5rem;
         }
 
         .employee-list-item:hover {
-          transform: scale(1.01);
+          border-color: #cbd5e1;
+          background: #f8fafc;
         }
 
         .emp-main {
@@ -400,10 +515,96 @@ const Employees = () => {
         .admin-controls {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          margin-left: 1rem;
-          padding-left: 1rem;
-          border-left: 1px solid #e2e8f0;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        @media (max-width: 1024px) {
+          .employees-page {
+            padding: 1rem;
+          }
+          .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .header-actions {
+            width: 100%;
+            justify-content: flex-start;
+          }
+          .search-bar {
+            max-width: 100%;
+          }
+          .employee-list-item {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          
+          .emp-right {
+            width: 100%;
+            justify-content: space-between;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 1rem;
+          }
+          
+          .admin-controls {
+            width: 100%;
+            border-left: none;
+            padding-left: 0;
+            margin-left: 0;
+          }
+
+          .header-actions {
+            justify-content: flex-start;
+          }
+          
+          .add-btn-desktop {
+            display: none;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .header-actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .add-btn-desktop {
+             width: 100%;
+             justify-content: center;
+          }
+          .employee-list-item {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 1rem;
+          }
+          .emp-actions {
+            width: 100%;
+            justify-content: space-between;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 1rem;
+          }
+          .tabs {
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+          }
+          .admin-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+          }
+          
+          .salary-input-mini {
+            width: 100%;
+          }
+          
+          .permission-toggle {
+            grid-column: span 2;
+            justify-content: flex-start;
+          }
+          
+          .btn-status {
+            grid-column: span 2;
+            justify-content: center;
+          }
         }
 
         .role-selector-mini {
@@ -416,19 +617,32 @@ const Employees = () => {
           outline: none;
         }
 
-        .btn-status {
+        .salary-input-mini {
+          width: 80px;
           padding: 4px 8px;
           border-radius: 6px;
+          border: 1px solid #e2e8f0;
+          font-size: 0.75rem;
+          background: #f8fafc;
+          outline: none;
+        }
+
+        .btn-status {
+          padding: 6px 12px;
+          border-radius: 8px;
           font-size: 0.75rem;
           font-weight: 700;
           border: none;
           cursor: pointer;
           transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
 
         .btn-status.deactivate {
-          background: #fff7ed;
-          color: #f97316;
+          background: #fee2e2;
+          color: #ef4444;
         }
 
         .btn-status.activate {
@@ -437,35 +651,125 @@ const Employees = () => {
         }
 
         .btn-delete {
-          width: 28px;
-          height: 28px;
-          border-radius: 6px;
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
           border: none;
-          background: #fee2e2;
-          color: #ef4444;
+          background: transparent;
+          color: #94a3b8;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        
+        .btn-delete:hover { 
+          background: #fef2f2;
+          color: #ef4444;
+          transform: scale(1.1);
         }
 
-        .btn-delete:hover { background: #fecaca; }
+        .permission-toggle {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 0 4px;
+        }
+        
+        .permission-label {
+          font-size: 10px;
+          font-weight: 700;
+          color: #64748b;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        /* The switch - the box around the slider */
+        .switch {
+          position: relative;
+          display: inline-block;
+          width: 34px;
+          height: 20px;
+        }
+
+        /* Hide default HTML checkbox */
+        .switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        /* The slider */
+        .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #cbd5e1;
+          -webkit-transition: .4s;
+          transition: .4s;
+        }
+
+        .slider:before {
+          position: absolute;
+          content: "";
+          height: 14px;
+          width: 14px;
+          left: 3px;
+          bottom: 3px;
+          background-color: white;
+          -webkit-transition: .4s;
+          transition: .4s;
+        }
+
+        input:checked + .slider {
+          background-color: #000;
+        }
+
+        input:checked + .slider:before {
+          -webkit-transform: translateX(14px);
+          -ms-transform: translateX(14px);
+          transform: translateX(14px);
+        }
+
+        /* Rounded sliders */
+        .slider.round {
+          border-radius: 34px;
+        }
+
+        .slider.round:before {
+          border-radius: 50%;
+        }
 
         .fab-add {
           position: fixed;
           bottom: 2rem;
           right: 2rem;
-          width: 64px;
-          height: 64px;
-          border-radius: 18px;
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
           background: #000;
           color: white;
           border: none;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-          display: flex;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+          display: none;
           align-items: center;
           justify-content: center;
           cursor: pointer;
+          z-index: 50;
+        }
+
+        @media (max-width: 1024px) {
+          .fab-add { display: flex; }
+        }
+
+        .emp-actions-end {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
         }
 
         .modal-overlay {

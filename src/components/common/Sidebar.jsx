@@ -4,7 +4,7 @@ import { Settings as SettingsIcon, LayoutDashboard, Users, ClipboardCheck, Calen
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
   const { currentUser, logout, isSuperAdmin, userData } = useAuth();
   const navigate = useNavigate();
 
@@ -19,13 +19,22 @@ const Sidebar = () => {
   
   const mainItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/' },
-    { name: 'Directory', icon: <Users size={20} />, path: '/employees' },
-    { name: 'Tasks', icon: <ClipboardCheck size={20} />, path: '/tasks' },
-    { name: 'Leave', icon: <CalendarDays size={20} />, path: '/attendance' },
   ];
 
-  // Only show Payroll to admins/superadmins
-  if (isSuperAdmin || userData?.role === 'admin') {
+  const userRole = userData?.role?.toLowerCase();
+  
+  // Only show Directory to admins/superadmins
+  if (isSuperAdmin || userRole === 'admin') {
+    mainItems.push({ name: 'Directory', icon: <Users size={20} />, path: '/employees' });
+  }
+
+  mainItems.push(
+    { name: 'Tasks', icon: <ClipboardCheck size={20} />, path: '/tasks' },
+    { name: 'Leave', icon: <CalendarDays size={20} />, path: '/attendance' }
+  );
+
+  // Only show Payroll to admins/superadmins OR users with explicit permission
+  if (isSuperAdmin || userRole === 'admin' || userData?.permissions?.canViewPayroll) {
     mainItems.push({ name: 'Payroll', icon: <Wallet size={20} />, path: '/payroll' });
   }
 
@@ -43,7 +52,7 @@ const Sidebar = () => {
 
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'mobile-open' : ''}`}>
       <div className="user-profile-section">
         <div className="user-avatar-container">
           <div className="avatar-box">
@@ -54,8 +63,8 @@ const Sidebar = () => {
              )}
           </div>
           <div className="user-details">
-            <h3 className="user-name">{currentUser?.displayName || 'Sahil Dev'}</h3>
-            <p className="user-dept">{currentUser?.email || 'Admin Portal'}</p>
+            <h3 className="user-name">{userData?.fullName || currentUser?.displayName || 'Sahil Dev'}</h3>
+            <p className="user-dept">{userData?.role?.toUpperCase() || 'STAFF'} • {userData?.dept || 'Unassigned'}</p>
           </div>
         </div>
       </div>
@@ -67,6 +76,7 @@ const Sidebar = () => {
               key={item.path} 
               to={item.path}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              onClick={onClose}
             >
               <span className="icon">{item.icon}</span>
               <span className="label">{item.name}</span>
@@ -82,6 +92,7 @@ const Sidebar = () => {
               key={item.path} 
               to={item.path}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              onClick={onClose}
             >
               <span className="icon">{item.icon}</span>
               <span className="label">{item.name}</span>
@@ -102,14 +113,25 @@ const Sidebar = () => {
         .sidebar {
           width: 250px;
           height: 100vh;
-          background: var(--bg-sidebar);
-          border-right: 1px solid var(--border);
+          background: #ffffff;
+          border-right: 1px solid #f1f5f9;
           display: flex;
           flex-direction: column;
           position: fixed;
           left: 0;
           top: 0;
           z-index: 50;
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @media (max-width: 1024px) {
+          .sidebar {
+            transform: translateX(-100%);
+            box-shadow: 20px 0 50px rgba(0,0,0,0.1);
+          }
+          .sidebar.mobile-open {
+            transform: translateX(0);
+          }
         }
 
         .user-profile-section {
@@ -143,11 +165,17 @@ const Sidebar = () => {
           font-weight: 700;
           color: #0f172a;
           margin-bottom: 2px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .user-dept {
           font-size: 0.75rem;
           color: #64748b;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .nav-menu {
@@ -155,6 +183,7 @@ const Sidebar = () => {
           display: flex;
           flex-direction: column;
           padding: 0 1rem;
+          overflow-y: auto;
         }
 
         .nav-group {
