@@ -7,7 +7,7 @@ SahilDev HRM is a modern, secure, and highly scalable Human Resource Management 
 -   **🛡️ Enterprise-Grade Security**:
     -   **Brute-Force Protection**: Automatic 30-minute account lockout after 3 failed login attempts.
     -   **Protected Routing**: Secure navigation prevents unauthorized access to sensitive modules.
-    -   **Superadmin Control**: Centralized authority for `sahildev212@gmail.com` with exclusive access to system settings.
+    -   **Superadmin Control**: Centralized authority for superadmin with exclusive access to system settings.
 -   **🔐 Multiple Auth Methods**: Supports both **Google OAuth** and **Email/Password** authentication with a functional "Forgot Password" workflow.
 -   **👥 Role-Based Access (RBAC)**:
     -   **Superadmin**: Full system control, SMTP configuration, and audit logs.
