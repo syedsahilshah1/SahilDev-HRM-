@@ -21,7 +21,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { userData } = useAuth();
+  const { userData, isSuperAdmin } = useAuth();
   const [stats, setStats] = useState({
     totalEmployees: 0,
     activeTasks: 0
@@ -116,10 +116,12 @@ const Dashboard = () => {
 
         <div className="sidebar-col">
           <div className="quick-actions-grid">
-            <div className="card action-card dark" onClick={() => alert('Role Management module coming soon!')}>
-              <ShieldCheck size={24} />
-              <span>Manage Roles</span>
-            </div>
+            {isSuperAdmin && (
+              <div className="card action-card dark" onClick={() => navigate('/employees')}>
+                <ShieldCheck size={24} />
+                <span>Manage Roles</span>
+              </div>
+            )}
             <div className="card action-card" onClick={() => navigate('/tasks')}>
               <ClipboardCheck size={24} className="text-blue" />
               <span>Assign Tasks</span>

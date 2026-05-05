@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, ChevronRight, X } from 'lucide-react';
+import { Search, Plus, ChevronRight, X, MoreVertical } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 
 const Employees = () => {
   const [activeTab, setActiveTab] = useState('All Teams');
@@ -14,8 +14,8 @@ const Employees = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    role: 'Employee',
-    dept: 'IT'
+    role: 'Developer',
+    dept: 'Development'
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -40,13 +40,41 @@ const Employees = () => {
     try {
       setError('');
       setSubmitting(true);
-      await addEmployee(formData.email, formData.fullName, formData.role.toLowerCase());
+      await addEmployee(formData.email, formData.fullName, formData.role);
       setShowAddModal(false);
-      setFormData({ fullName: '', email: '', role: 'Employee', dept: 'IT' });
+      setFormData({ fullName: '', email: '', role: 'Developer', dept: 'Development' });
     } catch (err) {
       setError('Failed to add employee: ' + err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleUpdateUserStatus = async (uid, newStatus) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, { status: newStatus });
+    } catch (err) {
+      console.error('Error updating status:', err);
+    }
+  };
+
+  const handleUpdateUserRole = async (uid, newRole) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, { role: newRole });
+    } catch (err) {
+      console.error('Error updating role:', err);
+    }
+  };
+
+  const handleDeleteUser = async (uid) => {
+    if (window.confirm('Are you sure you want to remove this member? This will delete their records.')) {
+      try {
+        await deleteDoc(doc(db, 'users', uid));
+      } catch (err) {
+        console.error('Error deleting user:', err);
+      }
     }
   };
 
@@ -84,7 +112,7 @@ const Employees = () => {
               <div className="emp-main">
                 <div className="emp-photo">
                   <div className="avatar-placeholder">{emp.fullName?.charAt(0)}</div>
-                  <span className={`status-indicator ${emp.status === 'Active' ? 'active' : 'on-leave'}`}></span>
+                  <span className={`status-indicator ${emp.status === 'Active' ? 'active' : 'inactive'}`}></span>
                 </div>
                 <div className="emp-info">
                   <h3>{emp.fullName}</h3>
@@ -92,9 +120,38 @@ const Employees = () => {
                 </div>
               </div>
               <div className="emp-right">
-                <span className={`status-pill ${emp.status === 'Active' ? 'active' : 'on-leave'}`}>
-                  {emp.status}
-                </span>
+                <div className="status-container">
+                  <span className={`status-pill ${emp.status === 'Active' ? 'active' : 'inactive'}`}>
+                    {emp.status}
+                  </span>
+                </div>
+                
+                {isSuperAdmin && emp.role !== 'superadmin' && (
+                  <div className="admin-controls">
+                    <select 
+                      className="role-selector-mini"
+                      value={emp.role}
+                      onChange={(e) => handleUpdateUserRole(emp.uid, e.target.value)}
+                    >
+                      <option>Admin</option>
+                      <option>Manager</option>
+                      <option>Developer</option>
+                      <option>Project Manager</option>
+                      <option>Team Lead</option>
+                      <option>Designer</option>
+                      <option>HR</option>
+                    </select>
+                    <button 
+                      className={`btn-status ${emp.status === 'Active' ? 'deactivate' : 'activate'}`}
+                      onClick={() => handleUpdateUserStatus(emp.uid, emp.status === 'Active' ? 'Deactivated' : 'Active')}
+                    >
+                      {emp.status === 'Active' ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button className="btn-delete" onClick={() => handleDeleteUser(emp.uid)}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
                 <ChevronRight size={20} className="chevron" />
               </div>
             </div>
@@ -152,7 +209,6 @@ const Employees = () => {
                     value={formData.role}
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
                   >
-                    <option>Employee</option>
                     <option>Admin</option>
                     <option>Manager</option>
                     <option>Developer</option>
@@ -310,7 +366,7 @@ const Employees = () => {
         }
 
         .status-indicator.active { background: #10b981; }
-        .status-indicator.on-leave { background: #cbd5e1; }
+        .status-indicator.inactive { background: #ef4444; }
 
         .emp-info h3 {
           font-size: 1.125rem;
@@ -339,7 +395,61 @@ const Employees = () => {
         }
 
         .status-pill.active { background: #f0fdf4; color: #10b981; }
-        .status-pill.on-leave { background: #fffbeb; color: #d97706; }
+        .status-pill.inactive { background: #fef2f2; color: #ef4444; }
+
+        .admin-controls {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-left: 1rem;
+          padding-left: 1rem;
+          border-left: 1px solid #e2e8f0;
+        }
+
+        .role-selector-mini {
+          padding: 4px 8px;
+          border-radius: 6px;
+          border: 1px solid #e2e8f0;
+          font-size: 0.75rem;
+          font-weight: 600;
+          background: #f8fafc;
+          outline: none;
+        }
+
+        .btn-status {
+          padding: 4px 8px;
+          border-radius: 6px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-status.deactivate {
+          background: #fff7ed;
+          color: #f97316;
+        }
+
+        .btn-status.activate {
+          background: #f0fdf4;
+          color: #10b981;
+        }
+
+        .btn-delete {
+          width: 28px;
+          height: 28px;
+          border-radius: 6px;
+          border: none;
+          background: #fee2e2;
+          color: #ef4444;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+
+        .btn-delete:hover { background: #fecaca; }
 
         .fab-add {
           position: fixed;
