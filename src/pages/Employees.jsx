@@ -21,7 +21,7 @@ const Employees = () => {
   const [error, setError] = useState('');
 
   const { addEmployee, userData, isSuperAdmin } = useAuth();
-  const teams = ['All Teams', 'IT', 'HR', 'Sales', 'Marketing'];
+  const teams = ['All Teams', 'IT', 'Development', 'HR', 'Sales', 'Marketing', 'Management'];
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('fullName', 'asc'));
@@ -155,6 +155,11 @@ const Employees = () => {
                     <option>Employee</option>
                     <option>Admin</option>
                     <option>Manager</option>
+                    <option>Developer</option>
+                    <option>Project Manager</option>
+                    <option>Team Lead</option>
+                    <option>Designer</option>
+                    <option>HR</option>
                   </select>
                 </div>
                 <div className="form-group flex-1">
@@ -165,10 +170,12 @@ const Employees = () => {
                     onChange={(e) => setFormData({...formData, dept: e.target.value})}
                   >
                     <option>IT</option>
+                    <option>Development</option>
                     <option>HR</option>
                     <option>Sales</option>
                     <option>Marketing</option>
                     <option>Design</option>
+                    <option>Management</option>
                   </select>
                 </div>
               </div>

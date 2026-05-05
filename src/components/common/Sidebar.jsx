@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Settings as SettingsIcon, LayoutDashboard, Users, CalendarDays, Wallet, ShieldCheck, Network, FileText, HelpCircle, LogOut, User } from 'lucide-react';
+import { Settings as SettingsIcon, LayoutDashboard, Users, ClipboardCheck, CalendarDays, Wallet, ShieldCheck, Network, FileText, HelpCircle, LogOut, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,6 +20,7 @@ const Sidebar = () => {
   const mainItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/' },
     { name: 'Directory', icon: <Users size={20} />, path: '/employees' },
+    { name: 'Tasks', icon: <ClipboardCheck size={20} />, path: '/tasks' },
     { name: 'Leave', icon: <CalendarDays size={20} />, path: '/attendance' },
   ];
 

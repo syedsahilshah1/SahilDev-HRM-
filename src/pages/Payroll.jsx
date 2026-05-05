@@ -11,12 +11,7 @@ import {
 } from 'lucide-react';
 
 const Payroll = () => {
-  const payrollData = [
-    { name: 'Jane Doe', email: 'jane.doe@company.com', dept: 'Product Design', amount: '$8,450.00', status: 'Paid' },
-    { name: 'Marcus Smith', email: 'm.smith@company.com', dept: 'Engineering', amount: '$10,200.00', status: 'Processing' },
-    { name: 'Elena Luna', email: 'elena.l@company.com', dept: 'Marketing', amount: '$7,100.00', status: 'Paid' },
-    { name: 'Robert King', email: 'r.king@company.com', dept: 'Engineering', amount: '$12,400.00', status: 'Paid' },
-  ];
+  const payrollData = [];
 
   return (
     <div className="payroll-page">
@@ -37,24 +32,24 @@ const Payroll = () => {
       <div className="stats-row">
         <div className="card stat-card wide">
           <p className="stat-label">TOTAL MONTHLY COMPENSATION</p>
-          <h2 className="stat-value">$482,500.00</h2>
+          <h2 className="stat-value">$0.00</h2>
           <div className="progress-bar">
-            <div className="progress" style={{ width: '75%' }}></div>
+            <div className="progress" style={{ width: '0%' }}></div>
           </div>
-          <p className="progress-label">75% of Budget</p>
+          <p className="progress-label">0% of Budget</p>
         </div>
         <div className="card stat-card compact">
           <div className="icon-box green"><CheckCircle size={20} /></div>
           <div className="stat-info">
              <p className="stat-label">Processed</p>
-             <h3 className="stat-value-small">142 Employees</h3>
+             <h3 className="stat-value-small">0 Employees</h3>
           </div>
         </div>
         <div className="card stat-card compact">
           <div className="icon-box orange"><Clock size={20} /></div>
           <div className="stat-info">
              <p className="stat-label">Pending</p>
-             <h3 className="stat-value-small">12 Employees</h3>
+             <h3 className="stat-value-small">0 Employees</h3>
           </div>
         </div>
       </div>
@@ -109,7 +104,7 @@ const Payroll = () => {
           </table>
         </div>
         <div className="table-footer">
-          <p>Showing 1-4 of 154 employees</p>
+          <p>No records found</p>
           <div className="pagination">
             <button className="page-btn"><ChevronLeft size={16} /></button>
             <button className="page-btn"><ChevronRight size={16} /></button>
@@ -122,25 +117,22 @@ const Payroll = () => {
             <h3>Tax Withholdings</h3>
             <div className="tax-row">
                <span>Federal Tax</span>
-               <span className="font-bold">$84,200.00</span>
+               <span className="font-bold">$0.00</span>
             </div>
-            <div className="tax-progress-bar"><div className="tax-progress" style={{ width: '60%' }}></div></div>
+            <div className="tax-progress-bar"><div className="tax-progress" style={{ width: '0%' }}></div></div>
             <div className="tax-row">
                <span>Social Security</span>
-               <span className="font-bold">$32,150.00</span>
+               <span className="font-bold">$0.00</span>
             </div>
-            <div className="tax-progress-bar blue"><div className="tax-progress blue" style={{ width: '40%' }}></div></div>
+            <div className="tax-progress-bar blue"><div className="tax-progress blue" style={{ width: '0%' }}></div></div>
          </div>
          <div className="card">
             <h3>Annual Trend</h3>
             <p className="text-muted">Comparison with previous fiscal year</p>
             <div className="trend-chart">
-               <div className="bar" style={{ height: '40%' }}></div>
-               <div className="bar" style={{ height: '60%' }}></div>
-               <div className="bar" style={{ height: '50%' }}></div>
-               <div className="bar" style={{ height: '70%' }}></div>
-               <div className="bar dark" style={{ height: '90%' }}></div>
-               <div className="bar" style={{ height: '65%' }}></div>
+               {[...Array(6)].map((_, i) => (
+                 <div key={i} className="bar" style={{ height: '0%' }}></div>
+               ))}
             </div>
          </div>
       </div>

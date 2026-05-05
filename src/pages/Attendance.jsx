@@ -11,15 +11,9 @@ import {
 } from 'lucide-react';
 
 const Attendance = () => {
-  const attendanceLogs = [
-    { name: 'Marcus Chen', status: 'ON TIME', checkIn: '08:45 AM', checkOut: '05:30 PM', avatar: 'MC' },
-    { name: 'Sarah Jenkins', status: 'LATE', checkIn: '09:12 AM', checkOut: '06:05 PM', avatar: 'SJ' },
-  ];
+  const attendanceLogs = [];
 
-  const applications = [
-    { name: 'Elena Rodriguez', role: 'Marketing Specialist', type: 'Sick Leave', date: 'Oct 24 - Oct 26, 2023', duration: '3 Days', note: 'Severe seasonal flu, medical certificate attached.', status: 'PENDING' },
-    { name: 'Jameson Blake', role: 'Senior Engineer', type: 'Personal Leave', date: 'Nov 01 - Nov 05, 2023', duration: '5 Days', note: 'Family wedding event in Seattle.', status: 'APPROVED' },
-  ];
+  const applications = [];
 
   return (
     <div className="attendance-page">
@@ -88,7 +82,7 @@ const Attendance = () => {
              <div className="card-header">
                 <h3>Review Applications</h3>
                 <div className="filter-pills">
-                   <button className="pill active">Pending (4)</button>
+                   <button className="pill active">Pending (0)</button>
                    <button className="pill">All Requests</button>
                 </div>
              </div>

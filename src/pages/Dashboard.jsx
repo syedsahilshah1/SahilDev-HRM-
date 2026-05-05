@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   CheckCircle2, 
@@ -14,12 +14,39 @@ import {
   Bell,
   CheckCircle
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const { userData } = useAuth();
+  const [stats, setStats] = useState({
+    totalEmployees: 0,
+    activeTasks: 0
+  });
+
+  useEffect(() => {
+    // Total Employees
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      setStats(prev => ({ ...prev, totalEmployees: snapshot.size }));
+    });
+
+    // Active Tasks
+    const unsubscribeTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
+      setStats(prev => ({ ...prev, activeTasks: snapshot.size }));
+    });
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribeTasks();
+    };
+  }, []);
   return (
     <div className="dashboard">
       <header className="dashboard-header">
-        <h1>Good morning, Alex.</h1>
+        <h1>Good morning, {userData?.fullName?.split(' ')[0] || 'Member'}.</h1>
         <p>Manage your project team and pending administrative tasks.</p>
       </header>
 
@@ -36,15 +63,12 @@ const Dashboard = () => {
             
             <div className="stats-row">
               <div className="stat-box">
-                <span className="value">14</span>
+                <span className="value">{stats.totalEmployees}</span>
                 <span className="label">Total Members</span>
               </div>
               <div className="stat-box">
-                <div className="value-group">
-                  <span className="value">12</span>
-                  <span className="badge-success">85% ON-SITE</span>
-                </div>
-                <span className="label">Today's Attendance</span>
+                <span className="value">{stats.activeTasks}</span>
+                <span className="label">Total Active Tasks</span>
               </div>
             </div>
           </div>
@@ -56,7 +80,7 @@ const Dashboard = () => {
                   {['M', 'T', 'W', 'T', 'F'].map((day, idx) => (
                     <div key={idx} className="bar-group">
                        <div className="bar-container">
-                          <div className="bar-fill" style={{ height: `${[40, 70, 55, 85, 60][idx]}%` }}></div>
+                          <div className="bar-fill" style={{ height: '0%' }}></div>
                        </div>
                        <span className="day-label">{day}</span>
                     </div>
@@ -71,10 +95,7 @@ const Dashboard = () => {
               <button className="text-link blue">View All</button>
             </div>
             <div className="approvals-list">
-              {[
-                { name: 'Sarah Connor', type: 'Sick Leave', duration: '2 Days', image: 'https://i.pravatar.cc/150?u=sarah' },
-                { name: 'Marcus Wright', type: 'Personal Leave', duration: '1 Day', image: 'https://i.pravatar.cc/150?u=marcus' }
-              ].map((item, idx) => (
+              {[].map((item, idx) => (
                 <div key={idx} className="card approval-item">
                   <div className="user-info">
                     <img src={item.image} alt={item.name} />
@@ -99,7 +120,7 @@ const Dashboard = () => {
               <ShieldCheck size={24} />
               <span>Manage Roles</span>
             </div>
-            <div className="card action-card" onClick={() => alert('Task Assignment module coming soon!')}>
+            <div className="card action-card" onClick={() => navigate('/tasks')}>
               <ClipboardCheck size={24} className="text-blue" />
               <span>Assign Tasks</span>
             </div>
@@ -116,11 +137,7 @@ const Dashboard = () => {
           <div className="card activity-card">
             <h3>Recent Team Activity</h3>
             <div className="activity-list">
-              {[
-                { title: 'Project Apollo milestone "Frontend Beta" completed.', time: '2 hours ago', icon: <CheckCircle className="text-blue" />, bg: '#eff6ff' },
-                { title: 'Julia Mendez updated the task "API Documentation".', time: '5 hours ago', icon: <Bell className="text-orange" />, bg: '#fff7ed' },
-                { title: 'New Member David Chen joined the Apollo Phase II team.', time: 'Yesterday at 4:30 PM', icon: <UserPlus className="text-success" />, bg: '#f0fdf4' }
-              ].map((activity, idx) => (
+              {[].map((activity, idx) => (
                 <div key={idx} className="activity-item">
                   <div className="activity-icon-box" style={{ background: activity.bg }}>
                     {activity.icon}

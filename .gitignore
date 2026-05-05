@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# AI Assistants
+.agents/
+.claude/
+.kiro/
+.gemini/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

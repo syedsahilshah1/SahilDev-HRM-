@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
 import Payroll from './pages/Payroll';
+import Tasks from './pages/Tasks';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
@@ -47,6 +48,7 @@ function App() {
                     <Route path="/employees" element={<Employees />} />
                     <Route path="/attendance" element={<Attendance />} />
                     <Route path="/payroll" element={<Payroll />} />
+                    <Route path="/tasks" element={<Tasks />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={
