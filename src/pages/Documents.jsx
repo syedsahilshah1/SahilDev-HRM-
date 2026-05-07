@@ -11,6 +11,7 @@ const Documents = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('repository');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const [copied, setCopied] = useState(false);
   
   // Send Feature State
@@ -185,15 +186,44 @@ const Documents = () => {
     doc.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleDownloadDocument = async (doc) => {
+    if (!doc) return;
+    
+    // Case 1: Hosted file (PDF/Image/Doc)
+    if (doc.fileUrl) {
+      try {
+        const response = await fetch(doc.fileUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const element = document.createElement("a");
+        element.href = url;
+        element.download = doc.name || "document";
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Download failed, opening in new tab:", err);
+        window.open(doc.fileUrl, '_blank');
+      }
+      return;
+    }
+
+    // Case 2: Generated document (text content)
+    if (doc.content) {
+      const element = document.createElement("a");
+      const file = new Blob([doc.content], {type: 'text/plain'});
+      element.href = URL.createObjectURL(file);
+      element.download = `${(doc.name || doc.templateName || 'Document').replace(/\s+/g, '_')}.txt`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
+  };
+
   const handleDownloadTemplate = (name) => {
     const content = templatesContent[name] || "Template content not found.";
-    const element = document.createElement("a");
-    const file = new Blob([content], {type: 'text/plain'});
-    element.href = URL.createObjectURL(file);
-    element.download = `${name.replace(/\s+/g, '_')}_Template.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    handleDownloadDocument({ name, content });
   };
 
   const handleCopyTemplate = (content) => {
@@ -281,10 +311,20 @@ const Documents = () => {
                   </div>
                 </div>
                 <div className="doc-actions">
-                  <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="btn-download">
+                  <button 
+                    onClick={() => doc.fileUrl ? window.open(doc.fileUrl, '_blank') : setPreviewDoc(doc)} 
+                    className="btn-preview"
+                  >
+                    <Eye size={18} />
+                    <span>Preview</span>
+                  </button>
+                  <button 
+                    onClick={() => handleDownloadDocument(doc)} 
+                    className="btn-download"
+                  >
                     <Download size={18} />
                     <span>Download</span>
-                  </a>
+                  </button>
                 </div>
               </div>
             ))
@@ -308,10 +348,23 @@ const Documents = () => {
                 <div className="template-list">
                   {filteredItems.map((item, i) => (
                     <div key={i} className="template-item">
-                      <span>{item}</span>
-                      <button className="btn-get-template" onClick={() => setSelectedTemplate(item)}>
-                        <Eye size={14} />
-                      </button>
+                      <span className="template-name">{item}</span>
+                      <div className="template-item-actions">
+                        <button 
+                          className="btn-icon-sm btn-preview-sm" 
+                          onClick={() => setSelectedTemplate(item)}
+                          title="Preview"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button 
+                          className="btn-icon-sm btn-download-sm" 
+                          onClick={() => handleDownloadTemplate(item)}
+                          title="Download"
+                        >
+                          <Download size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -372,7 +425,42 @@ const Documents = () => {
         </div>
       )}
 
-      {/* Send Template Modal */}
+      {/* Document Preview Modal */}
+      {previewDoc && (
+        <div className="modal-overlay" onClick={() => setPreviewDoc(null)}>
+          <div className="modal-content card shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h2>{previewDoc.name || previewDoc.templateName}</h2>
+                <p className="text-xs text-muted uppercase font-bold tracking-wider">
+                  {previewDoc.isPersonal ? `Personal Document for ${previewDoc.employeeName}` : 'Company Document'}
+                </p>
+              </div>
+              <button className="close-btn" onClick={() => setPreviewDoc(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="template-preview-box">
+                <pre>{previewDoc.content}</pre>
+              </div>
+              <div className="placeholder-info">
+                <Calendar size={14} />
+                <span>Sent on: {previewDoc.createdAt?.toDate ? previewDoc.createdAt.toDate().toLocaleString() : 'Recently'}</span>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-secondary flex-1" onClick={() => setPreviewDoc(null)}>Close</button>
+              <button className="btn-primary-blue flex-1 flex items-center justify-center gap-2" onClick={() => handleDownloadDocument(previewDoc)}>
+                <Download size={18} />
+                Download .txt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showSendModal && (
         <div className="modal-overlay" onClick={() => setShowSendModal(false)}>
           <div className="modal-content card shadow-xl max-w-2xl" onClick={e => e.stopPropagation()}>
@@ -583,6 +671,67 @@ const Documents = () => {
           font-size: 0.8rem;
         }
 
+        .placeholder-info {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.75rem 1rem;
+          background: #eff6ff;
+          color: #1e40af;
+          border-radius: 10px;
+          font-size: 0.8rem;
+          margin-top: 1rem;
+        }
+
+        .doc-actions {
+          display: flex;
+          gap: 0.5rem;
+          margin-top: 1.5rem;
+        }
+
+        .btn-preview {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          background: #f1f5f9;
+          color: #475569;
+          border: none;
+          padding: 0.75rem;
+          border-radius: 10px;
+          font-weight: 600;
+          font-size: 0.875rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-preview:hover {
+          background: #e2e8f0;
+          color: #0f172a;
+        }
+
+        .btn-download {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          background: #2563eb;
+          color: white;
+          border: none;
+          padding: 0.75rem;
+          border-radius: 10px;
+          font-weight: 600;
+          font-size: 0.875rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-download:hover {
+          background: #1d4ed8;
+        }
+
         .modal-footer {
           padding: 1.5rem 2rem;
           border-top: 1px solid #f1f5f9;
@@ -719,34 +868,62 @@ const Documents = () => {
           align-items: center;
           padding: 0.75rem 1rem;
           background: #f8fafc;
-          border-radius: 8px;
-          font-size: 0.875rem;
-          color: #475569;
-          transition: background 0.2s;
+          border-radius: 10px;
+          border: 1px solid transparent;
+          transition: all 0.2s;
         }
 
         .template-item:hover {
           background: #f1f5f9;
+          border-color: #e2e8f0;
+          transform: translateX(4px);
         }
 
-        .btn-get-template {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          color: #64748b;
-          width: 28px;
-          height: 28px;
+        .template-name {
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: #334155;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin-right: 1rem;
+        }
+
+        .template-item-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .btn-icon-sm {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 6px;
+          border: none;
           cursor: pointer;
           transition: all 0.2s;
         }
 
-        .btn-get-template:hover {
-          background: #2563eb;
-          color: white;
-          border-color: #2563eb;
+        .btn-preview-sm {
+          background: #f1f5f9;
+          color: #64748b;
+        }
+
+        .btn-preview-sm:hover {
+          background: #e2e8f0;
+          color: #0f172a;
+        }
+
+        .btn-download-sm {
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .btn-download-sm:hover {
+          background: #dbeafe;
+          color: #1d4ed8;
         }
 
         .documents-page {
