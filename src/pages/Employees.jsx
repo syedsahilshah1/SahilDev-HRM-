@@ -8,6 +8,7 @@ const Employees = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [employees, setEmployees] = useState([]);
+  const [designations, setDesignations] = useState(['Developer', 'Graphic Designer', 'Project Manager', 'QA Engineer', 'UI/UX Designer', 'HR Manager']);
   const [loading, setLoading] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,7 +34,18 @@ const Employees = () => {
       setEmployees(emps);
       setLoading(false);
     });
-    return unsubscribe;
+
+    // Load Designations
+    const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), (doc) => {
+      if (doc.exists() && doc.data().list) {
+        setDesignations(doc.data().list);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubDesig();
+    };
   }, []);
 
   const handleAddEmployee = async (e) => {
@@ -164,13 +176,18 @@ const Employees = () => {
                 
                 {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && emp.role?.toLowerCase() !== 'superadmin' && (
                   <div className="admin-controls">
-                    <input 
-                      type="text"
+                    <select 
                       className="role-input-mini"
-                      placeholder="Role"
                       value={emp.role || ''}
                       onChange={(e) => handleUpdateUserRole(emp.uid, e.target.value)}
-                    />
+                    >
+                      {designations.map(desig => (
+                        <option key={desig} value={desig}>{desig}</option>
+                      ))}
+                      {emp.role && !designations.includes(emp.role) && (
+                        <option value={emp.role}>{emp.role}</option>
+                      )}
+                    </select>
                     <input 
                       type="number" 
                       className="salary-input-mini"
@@ -261,14 +278,19 @@ const Employees = () => {
               </div>
               <div className="form-row">
                 <div className="form-group flex-1">
-                  <label>Role</label>
-                  <input 
-                    type="text"
+                  <label>Role / Designation</label>
+                  <select 
                     className="modal-input"
-                    placeholder="e.g. Graphic Designer"
                     value={formData.role}
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
-                  />
+                  >
+                    {designations.map(desig => (
+                      <option key={desig} value={desig}>{desig}</option>
+                    ))}
+                    {!designations.includes(formData.role) && (
+                      <option value={formData.role}>{formData.role}</option>
+                    )}
+                  </select>
                 </div>
               </div>
               

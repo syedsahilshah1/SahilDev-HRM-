@@ -13,6 +13,7 @@ import {
   CheckCircle2, 
   Eye, 
   XCircle,
+  X,
   History,
   Mail,
   Server,
@@ -24,6 +25,7 @@ import {
   Save,
   Globe
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Toggle = ({ enabled, setEnabled }) => (
   <button 
@@ -65,6 +67,7 @@ const Toggle = ({ enabled, setEnabled }) => (
 
 const Settings = () => {
   const { isSuperAdmin } = useAuth();
+  const navigate = useNavigate();
   const [modules, setModules] = useState({
     payroll: true,
     attendance: true,
@@ -83,8 +86,20 @@ const Settings = () => {
   const [companyPolicy, setCompanyPolicy] = useState('');
   const [orgChartUrl, setOrgChartUrl] = useState('');
   const [documents, setDocuments] = useState([]);
-  const [newDoc, setNewDoc] = useState({ name: '', category: '', url: '' });
-  const [saving, setSaving] = useState({ policy: false, org: false, doc: false });
+  const [designations, setDesignations] = useState([]);
+  const [newDesignation, setNewDesignation] = useState('');
+  const [newDoc, setNewDoc] = useState({ name: '', category: 'General', url: '' });
+  const [saving, setSaving] = useState({ policy: false, org: false, doc: false, designation: false });
+
+  const documentCategories = [
+    'General',
+    'Employment / HR',
+    'Disciplinary',
+    'Payroll / Finance',
+    'Daily / Internal',
+    'Legal',
+    'Certificates'
+  ];
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -105,7 +120,17 @@ const Settings = () => {
       setDocuments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    return () => unsubDocs();
+    // Load Designations
+    const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), (doc) => {
+      if (doc.exists()) {
+        setDesignations(doc.data().list || []);
+      }
+    });
+
+    return () => {
+      unsubDocs();
+      unsubDesig();
+    };
   }, [isSuperAdmin]);
 
   const handleSavePolicy = async () => {
@@ -157,6 +182,36 @@ const Settings = () => {
       } catch (err) {
         console.error(err);
       }
+    }
+  };
+
+  const handleAddDesignation = async (e) => {
+    e.preventDefault();
+    const trimmed = newDesignation.trim();
+    if (!trimmed) return;
+    if (designations.map(d => d.toLowerCase()).includes(trimmed.toLowerCase())) {
+      alert('This designation already exists.');
+      return;
+    }
+
+    setSaving({ ...saving, designation: true });
+    try {
+      const updatedList = [...designations, trimmed];
+      await setDoc(doc(db, 'settings', 'designations'), { list: updatedList });
+      setNewDesignation('');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add designation');
+    }
+    setSaving({ ...saving, designation: false });
+  };
+
+  const handleDeleteDesignation = async (index) => {
+    const updatedList = designations.filter((_, i) => i !== index);
+    try {
+      await setDoc(doc(db, 'settings', 'designations'), { list: updatedList });
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -310,108 +365,203 @@ const Settings = () => {
              </div>
           </div>
 
+          {/* Designation Management */}
+          <div className="card designation-card mt-8">
+            <div className="card-header-row p-6 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Users size={20} className="text-blue" />
+                <div>
+                  <h3 className="text-lg font-bold">Company Designations</h3>
+                  <p className="text-xs text-slate-500">Define job titles available in the employee directory.</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleAddDesignation} className="flex gap-2 mb-4">
+                <input 
+                  type="text" 
+                  value={newDesignation}
+                  onChange={(e) => setNewDesignation(e.target.value)}
+                  placeholder="New designation (e.g. Graphic Designer)"
+                  className="settings-input flex-1"
+                />
+                <button type="submit" disabled={saving.designation} className="btn-primary-blue px-6">
+                  {saving.designation ? '...' : 'Add'}
+                </button>
+              </form>
+              <div className="designation-list flex flex-wrap gap-2">
+                {designations.map((desig, idx) => (
+                  <div key={idx} className="desig-tag">
+                    <span>{desig}</span>
+                    <button onClick={() => handleDeleteDesignation(idx)} className="text-slate-400 hover:text-red-500 ml-2">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                {designations.length === 0 && (
+                  <p className="text-xs text-slate-400 italic">No custom designations added yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Company Resources Management */}
           <div className="card company-mgmt-card mt-8">
-            <div className="card-header-row">
+            <div className="card-header-row p-6 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Globe size={20} className="text-primary" />
-                <h3>Company Resources Management</h3>
+                <Globe size={24} className="text-primary" />
+                <div>
+                  <h3 className="text-lg font-bold">Company Resources Dashboard</h3>
+                  <p className="text-xs text-slate-500">Manage public assets, policies, and standard templates.</p>
+                </div>
               </div>
             </div>
 
             <div className="mgmt-grid p-6">
               {/* Policy Editor */}
-              <div className="mgmt-section mb-8">
-                <label className="text-sm font-bold text-slate-700 mb-2 block flex items-center gap-2">
-                  <ShieldCheck size={16} /> Company Policy (HTML/Text)
-                </label>
+              <div className="mgmt-section mb-10">
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <ShieldCheck size={18} className="text-blue" /> 
+                    Company Policy (Markdown/HTML)
+                  </label>
+                  <span className="text-tiny text-slate-400">Last updated: {new Date().toLocaleDateString()}</span>
+                </div>
                 <textarea 
                   value={companyPolicy}
                   onChange={(e) => setCompanyPolicy(e.target.value)}
-                  placeholder="Enter company policy content here..."
+                  placeholder="Enter company policy content here... Supports standard text and HTML tags."
                   className="settings-textarea"
                 />
-                <button 
-                  onClick={handleSavePolicy}
-                  disabled={saving.policy}
-                  className="btn-primary-blue mt-2 flex items-center gap-2"
-                >
-                  <Save size={16} />
-                  {saving.policy ? 'Saving...' : 'Update Policy'}
-                </button>
+                <div className="flex gap-3 mt-3">
+                  <button 
+                    onClick={handleSavePolicy}
+                    disabled={saving.policy}
+                    className="btn-primary-blue flex-1 flex items-center justify-center gap-2"
+                  >
+                    <Save size={16} />
+                    {saving.policy ? 'Saving...' : 'Publish Policy'}
+                  </button>
+                  <button className="btn-outline flex-1" onClick={() => navigate('/policy')}>
+                    <Eye size={16} /> Preview Page
+                  </button>
+                </div>
               </div>
 
               {/* Org Chart Editor */}
-              <div className="mgmt-section mb-8">
-                <label className="text-sm font-bold text-slate-700 mb-2 block flex items-center gap-2">
-                  <Network size={16} /> Organization Chart Image URL
+              <div className="mgmt-section mb-10">
+                <label className="text-sm font-bold text-slate-700 mb-3 block flex items-center gap-2">
+                  <Network size={18} className="text-blue" /> 
+                  Organization Chart
                 </label>
-                <input 
-                  type="text"
-                  value={orgChartUrl}
-                  onChange={(e) => setOrgChartUrl(e.target.value)}
-                  placeholder="https://example.com/org-chart.png"
-                  className="settings-input"
-                />
-                <button 
-                  onClick={handleSaveOrgChart}
-                  disabled={saving.org}
-                  className="btn-primary-blue mt-2 flex items-center gap-2"
-                >
-                  <Save size={16} />
-                  {saving.org ? 'Saving...' : 'Update Org Chart'}
-                </button>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={orgChartUrl}
+                    onChange={(e) => setOrgChartUrl(e.target.value)}
+                    placeholder="Enter Image URL (e.g., https://...)"
+                    className="settings-input flex-1"
+                  />
+                  <button 
+                    onClick={handleSaveOrgChart}
+                    disabled={saving.org}
+                    className="btn-primary-blue px-6 flex items-center gap-2"
+                  >
+                    <Save size={16} />
+                    {saving.org ? 'Update' : 'Update'}
+                  </button>
+                </div>
+                {orgChartUrl && (
+                  <div className="mt-3 p-2 bg-slate-50 rounded-lg border border-slate-100 text-center">
+                    <p className="text-tiny text-slate-400 mb-2">Live Preview</p>
+                    <img src={orgChartUrl} alt="Org Chart Preview" className="max-h-32 mx-auto rounded border" />
+                  </div>
+                )}
               </div>
 
               {/* Document Manager */}
               <div className="mgmt-section">
-                <label className="text-sm font-bold text-slate-700 mb-4 block flex items-center gap-2">
-                  <FileText size={16} /> Document Repository
-                </label>
+                <div className="flex justify-between items-center mb-4">
+                  <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <FileText size={18} className="text-blue" /> 
+                    Document Repository Manager
+                  </label>
+                  <button className="text-link text-xs" onClick={() => navigate('/documents')}>View Repository</button>
+                </div>
                 
-                <form onSubmit={handleAddDocument} className="add-doc-form mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input 
-                      type="text" 
-                      placeholder="Doc Name" 
-                      value={newDoc.name}
-                      onChange={(e) => setNewDoc({...newDoc, name: e.target.value})}
-                      className="settings-input"
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Category" 
-                      value={newDoc.category}
-                      onChange={(e) => setNewDoc({...newDoc, category: e.target.value})}
-                      className="settings-input"
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="File URL" 
-                      value={newDoc.url}
-                      onChange={(e) => setNewDoc({...newDoc, url: e.target.value})}
-                      className="settings-input"
-                    />
+                <form onSubmit={handleAddDocument} className="add-doc-form mb-6 p-5 bg-slate-50 rounded-2xl border border-slate-200">
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-4">Add New Global Resource</p>
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="form-group">
+                        <label className="text-tiny font-bold text-slate-500 mb-1 block">DOCUMENT NAME</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Employee Handbook 2024" 
+                          value={newDoc.name}
+                          onChange={(e) => setNewDoc({...newDoc, name: e.target.value})}
+                          className="settings-input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="text-tiny font-bold text-slate-500 mb-1 block">CATEGORY</label>
+                        <select 
+                          value={newDoc.category}
+                          onChange={(e) => setNewDoc({...newDoc, category: e.target.value})}
+                          className="settings-input"
+                        >
+                          {documentCategories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="text-tiny font-bold text-slate-500 mb-1 block">RESOURCE URL (Direct Link)</label>
+                      <input 
+                        type="text" 
+                        placeholder="https://..." 
+                        value={newDoc.url}
+                        onChange={(e) => setNewDoc({...newDoc, url: e.target.value})}
+                        className="settings-input"
+                      />
+                    </div>
+                    <button type="submit" disabled={saving.doc} className="btn-primary-blue w-full flex items-center justify-center gap-2 py-3">
+                      <Plus size={18} />
+                      {saving.doc ? 'Adding...' : 'Add to Repository'}
+                    </button>
                   </div>
-                  <button type="submit" disabled={saving.doc} className="btn-outline w-full mt-3 flex items-center justify-center gap-2">
-                    <Plus size={16} />
-                    Add Document
-                  </button>
                 </form>
 
-                <div className="doc-list">
-                  {documents.map(doc => (
-                    <div key={doc.id} className="doc-mgmt-item flex items-center justify-between p-3 border-b border-slate-100 last:border-0">
-                      <div>
-                        <p className="font-bold text-sm">{doc.name}</p>
-                        <p className="text-xs text-slate-500">{doc.category || 'General'}</p>
+                <div className="doc-list-container bg-white rounded-xl border border-slate-100 overflow-hidden">
+                  <div className="doc-list-header bg-slate-50 px-4 py-2 border-b border-slate-100 flex justify-between">
+                    <span className="text-tiny font-bold text-slate-400">UPLOADED DOCUMENTS</span>
+                    <span className="text-tiny font-bold text-slate-400">{documents.length} FILES</span>
+                  </div>
+                  <div className="doc-list max-h-64 overflow-y-auto">
+                    {documents.map(doc => (
+                      <div key={doc.id} className="doc-mgmt-item flex items-center justify-between p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-white rounded-lg border border-slate-100 text-blue">
+                            <FileText size={16} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-sm text-slate-700">{doc.name}</p>
+                            <p className="text-xs text-slate-400">{doc.category || 'General'}</p>
+                          </div>
+                        </div>
+                        <button onClick={() => handleDeleteDocument(doc.id)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-all">
+                          <Trash2 size={18} />
+                        </button>
                       </div>
-                      <button onClick={() => handleDeleteDocument(doc.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                  {documents.length === 0 && <p className="text-center text-slate-400 py-4 text-sm">No documents added yet.</p>}
+                    ))}
+                    {documents.length === 0 && (
+                      <div className="text-center py-10">
+                        <FileText size={32} className="text-slate-200 mx-auto mb-2" />
+                        <p className="text-slate-400 text-sm">Your repository is empty.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -615,6 +765,25 @@ const Settings = () => {
         .change-id { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
 
         .text-link { background: transparent; border: none; color: #2563eb; font-weight: 600; font-size: 0.875rem; cursor: pointer; }
+
+        .desig-tag {
+          display: flex;
+          align-items: center;
+          padding: 0.5rem 1rem;
+          background: #f1f5f9;
+          border-radius: 99px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: #475569;
+        }
+
+        .desig-tag button {
+          background: transparent;
+          border: none;
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+        }
 
         @media (max-width: 1200px) {
           .settings-grid { grid-template-columns: 1fr; }
