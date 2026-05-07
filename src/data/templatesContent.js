@@ -430,5 +430,205 @@ Proudly presented to [Name] for achieving the "Developer of the Month" title for
 This is to certify that [Name] has successfully completed the [e.g., Advanced React & Node.js Architecture] training program conducted from [Date] to [Date].
 
 [Instructor Signature]
-[Authorized Signatory]`
+[Authorized Signatory]`,
+
+  // Additional Software House Specialized Documents
+  'Probation Completion Letter': `[Company Letterhead]
+
+Date: [Date]
+
+Dear [Employee Name],
+
+Following your performance review at the end of your probation period, we are pleased to confirm your appointment as a permanent employee in the position of [Job Title] effective from [Date].
+
+We have been impressed with your technical contributions, specifically in [Project/Skill], and look forward to your continued growth with [Company Name].
+
+All other terms and conditions of your employment remain as per your original appointment letter.
+
+Regards,
+[Name]
+HR Manager`,
+
+  'Performance Improvement Plan (PIP)': `PERFORMANCE IMPROVEMENT PLAN (PIP)
+
+Employee: [Name]
+Manager: [Manager Name]
+Date: [Date]
+
+1. AREAS FOR IMPROVEMENT:
+- [Area 1, e.g., Code Quality / Sprint Velocity]
+- [Area 2, e.g., Communication / Punctuality]
+
+2. EXPECTED OUTCOMES:
+- [Outcome 1]
+- [Outcome 2]
+
+3. SUPPORT & RESOURCES:
+- [e.g., Weekly 1-on-1s, Senior Dev Mentorship]
+
+4. REVIEW DATE: [Date]
+
+Failure to meet the objectives outlined in this plan by the review date may result in further disciplinary action, up to and including termination.
+
+[Manager Signature]    [Employee Signature]`,
+
+  'Equipment Handover Letter': `EQUIPMENT HANDOVER & ACKNOWLEDGEMENT
+
+Date: [Date]
+Employee: [Name]
+
+The following assets have been issued to the employee for business use:
+1. Laptop: [Model/Serial Number]
+2. Accessories: [e.g., Monitor, Keyboard, Mouse]
+3. Other: [e.g., Office Key, ID Card]
+
+Total Value: [Approx. Amount]
+
+I acknowledge receipt of the above items in good working condition. I agree to maintain them properly and return them to the company upon request or termination of employment.
+
+[Employee Signature]`,
+
+  'Software Developer Agreement': `SOFTWARE DEVELOPER INTELLECTUAL PROPERTY AGREEMENT
+
+This agreement is supplemental to the Employment Contract between [Company Name] and [Employee Name].
+
+1. OWNERSHIP: All source code, designs, documentation, and inventions created during the course of employment are "works for hire" and remain the exclusive property of [Company Name].
+2. NO EXTERNAL PROJECTS: The employee shall not engage in any competing software development projects or use company resources for personal projects without written consent.
+3. REPO ACCESS: Access to company repositories (GitHub/GitLab) is strictly for authorized business use only.
+
+[Employee Signature]    [Date]`,
+
+  'Remote Work Policy': `REMOTE WORK AGREEMENT
+
+This document outlines the terms for [Employee Name] working remotely.
+
+1. CORE HOURS: The employee is expected to be online and available between [Start Time] and [End Time] [Timezone].
+2. CONNECTIVITY: The employee must maintain a high-speed internet connection suitable for video conferencing and large code pushes.
+3. SECURITY: Use of the Company VPN is mandatory for all server and database access.
+4. COMMUNICATION: Daily standups on [Slack/Teams] at [Time] are mandatory.
+
+[Employee Signature]    [Date]`,
+
+  'Code Review Feedback': `CODE REVIEW FEEDBACK FORM
+
+Project: [Project Name]
+Feature/Branch: [Branch Name]
+Developer: [Developer Name]
+Reviewer: [Reviewer Name]
+Date: [Date]
+
+1. ARCHITECTURE & DESIGN:
+   - [Feedback on structure, patterns, etc.]
+
+2. CODE QUALITY & READABILITY:
+   - [Feedback on naming, comments, etc.]
+
+3. PERFORMANCE & SECURITY:
+   - [Feedback on efficiency, vulnerabilities, etc.]
+
+4. TEST COVERAGE:
+   - [Feedback on unit/integration tests]
+
+STATUS: [Approved / Requires Changes / Rejected]
+COMMENTS: [Detailed Comments]`,
+
+  'Project Handover Document': `PROJECT HANDOVER DOCUMENT
+
+Project Name: [Project Name]
+Handover From: [Outgoing Developer/Lead]
+Handover To: [Incoming Developer/Lead]
+Date: [Date]
+
+1. CURRENT STATUS:
+   - [Feature Completion %]
+   - [Recent Deployment Info]
+
+2. ACCESS & CREDENTIALS:
+   - Repo: [URL]
+   - Staging/Prod: [Links]
+   - API Documentation: [URL]
+
+3. KEY DEPENDENCIES:
+   - [Library A, Library B, etc.]
+
+4. PENDING TASKS & KNOWN ISSUES:
+   - [Task/Bug 1]
+   - [Task/Bug 2]
+
+5. CRITICAL CONTACTS:
+   - [Contact Person Name/Role]`,
+
+  'Exit Interview Form': `EXIT INTERVIEW QUESTIONNAIRE
+
+Employee Name: [Name]
+Designation: [Title]
+Last Working Day: [Date]
+Manager: [Manager Name]
+
+1. PRIMARY REASON FOR LEAVING:
+   [Reason]
+
+2. FEEDBACK ON WORK CULTURE:
+   [Feedback]
+
+3. FEEDBACK ON MANAGEMENT:
+   [Feedback]
+
+4. WHAT COULD WE HAVE DONE BETTER?
+   [Suggestions]
+
+5. WOULD YOU RECOMMEND THIS COMPANY?
+   [Yes/No]
+
+[Employee Signature]    [Date]`,
+
+  'Employee Referral Bonus Policy': `EMPLOYEE REFERRAL BONUS POLICY
+
+1. PURPOSE: To encourage employees to refer qualified candidates for open positions.
+2. ELIGIBILITY: All full-time employees except HR and Hiring Managers for the specific role.
+3. BONUS AMOUNT:
+   - Junior Roles: [Amount]
+   - Senior/Lead Roles: [Amount]
+   - Specialized Tech Roles: [Amount]
+4. PAYMENT TERMS: [e.g., 50% on joining, 50% after probation completion].
+5. PROCESS: Referrals must be submitted via [Internal Portal/Email] before the candidate's first interview.
+
+[Authorized Signatory]`,
+
+  'Data Security & Privacy Acknowledgement': `DATA SECURITY & PRIVACY ACKNOWLEDGEMENT
+
+I, [Employee Name], acknowledge that I have read and understood the Company's Data Security Policy.
+
+I agree to:
+1. Use strong, unique passwords for all company accounts.
+2. Enable 2-Factor Authentication (2FA) where available.
+3. Never share company credentials or customer data via unencrypted channels.
+4. Immediately report any suspected security breaches to [IT/Security Team].
+5. Adhere to GDPR/ISO standards as implemented by the company.
+
+[Employee Signature]    [Date]`,
+
+  'Incident Report Form': `SECURITY/TECHNICAL INCIDENT REPORT
+
+Reported By: [Name]
+Date of Incident: [Date]
+Time of Incident: [Time]
+Severity: [Low / Medium / High / Critical]
+
+1. DESCRIPTION OF INCIDENT:
+   [Details of what happened]
+
+2. IMPACT:
+   - Systems Affected: [List]
+   - Data Affected: [Details]
+
+3. ACTIONS TAKEN:
+   [Steps taken to mitigate/resolve]
+
+4. ROOT CAUSE (if known):
+   [Details]
+
+5. PREVENTATIVE MEASURES:
+   [Suggested steps to avoid recurrence]`,
 };
+

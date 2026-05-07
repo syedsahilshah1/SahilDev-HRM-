@@ -89,7 +89,7 @@ const Settings = () => {
   const [designations, setDesignations] = useState([]);
   const [newDesignation, setNewDesignation] = useState('');
   const [newDoc, setNewDoc] = useState({ name: '', category: 'General', url: '' });
-  const [saving, setSaving] = useState({ policy: false, org: false, doc: false, designation: false });
+  const [saving, setSaving] = useState({ policy: false, org: false, doc: false, designation: false, smtp: false });
 
   const documentCategories = [
     'General',
@@ -111,6 +111,9 @@ const Settings = () => {
 
       const orgDoc = await getDoc(doc(db, 'settings', 'org_chart'));
       if (orgDoc.exists()) setOrgChartUrl(orgDoc.data().imageUrl);
+
+      const smtpDoc = await getDoc(doc(db, 'settings', 'smtp'));
+      if (smtpDoc.exists()) setSmtp(prev => ({ ...prev, ...smtpDoc.data() }));
     };
 
     loadCompanyData();
@@ -121,9 +124,17 @@ const Settings = () => {
     });
 
     // Load Designations
-    const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), (doc) => {
-      if (doc.exists()) {
-        setDesignations(doc.data().list || []);
+    const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), (docSnap) => {
+      if (docSnap.exists()) {
+        const list = docSnap.data().list || [];
+        // Unique cleanup (case-insensitive)
+        const uniqueList = Array.from(new Set(list.map(d => d.trim()))).filter(Boolean);
+        setDesignations(uniqueList);
+        
+        // If we found duplicates during load, sync back to DB (one-time cleanup)
+        if (uniqueList.length !== list.length) {
+          setDoc(doc(db, 'settings', 'designations'), { list: uniqueList }, { merge: true });
+        }
       }
     });
 
@@ -155,6 +166,18 @@ const Settings = () => {
       alert('Failed to update org chart');
     }
     setSaving({ ...saving, org: false });
+  };
+
+  const handleSaveSmtp = async () => {
+    setSaving({ ...saving, smtp: true });
+    try {
+      await setDoc(doc(db, 'settings', 'smtp'), smtp);
+      alert('SMTP Settings updated successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update SMTP settings');
+    }
+    setSaving({ ...saving, smtp: false });
   };
 
   const handleAddDocument = async (e) => {
@@ -289,25 +312,62 @@ const Settings = () => {
              <div className="smtp-form mt-4">
                 <div className="form-group mb-4">
                    <label className="text-tiny font-bold text-muted mb-1 block">SMTP HOST</label>
-                   <input type="text" value={smtp.server} className="settings-input" readOnly />
+                   <input 
+                    type="text" 
+                    value={smtp.server} 
+                    onChange={(e) => setSmtp({...smtp, server: e.target.value})}
+                    className="settings-input" 
+                   />
                 </div>
                 <div className="form-row flex gap-2">
                    <div className="form-group flex-1">
                       <label className="text-tiny font-bold text-muted mb-1 block">PORT</label>
-                      <input type="text" value={smtp.port} className="settings-input" readOnly />
+                      <input 
+                        type="text" 
+                        value={smtp.port} 
+                        onChange={(e) => setSmtp({...smtp, port: e.target.value})}
+                        className="settings-input" 
+                      />
                    </div>
                    <div className="form-group flex-1">
                       <label className="text-tiny font-bold text-muted mb-1 block">ENCRYPTION</label>
-                      <input type="text" value={smtp.encryption} className="settings-input" readOnly />
+                      <select 
+                        value={smtp.encryption} 
+                        onChange={(e) => setSmtp({...smtp, encryption: e.target.value})}
+                        className="settings-input"
+                      >
+                        <option value="TLS">TLS</option>
+                        <option value="SSL">SSL</option>
+                        <option value="None">None</option>
+                      </select>
                    </div>
                 </div>
                 <div className="form-group mt-4">
-                   <label className="text-tiny font-bold text-muted mb-1 block">SENDER AUTH</label>
-                   <input type="text" value={smtp.user} className="settings-input" readOnly />
+                   <label className="text-tiny font-bold text-muted mb-1 block">SENDER AUTH (EMAIL)</label>
+                   <input 
+                    type="text" 
+                    value={smtp.user} 
+                    onChange={(e) => setSmtp({...smtp, user: e.target.value})}
+                    className="settings-input" 
+                   />
                 </div>
-                <button className="btn-outline w-full mt-4 flex items-center justify-center gap-2">
+                <div className="form-group mt-4">
+                   <label className="text-tiny font-bold text-muted mb-1 block">PASSWORD / APP KEY</label>
+                   <input 
+                    type="password" 
+                    value={smtp.password} 
+                    onChange={(e) => setSmtp({...smtp, password: e.target.value})}
+                    className="settings-input" 
+                    placeholder="••••••••"
+                   />
+                </div>
+                <button 
+                  onClick={handleSaveSmtp}
+                  disabled={saving.smtp}
+                  className="btn-outline w-full mt-4 flex items-center justify-center gap-2"
+                >
                   <Server size={16} />
-                  Save Mail Settings
+                  {saving.smtp ? 'Saving...' : 'Save Mail Settings'}
                 </button>
              </div>
           </div>
@@ -378,28 +438,39 @@ const Settings = () => {
             </div>
             <div className="p-6">
               <form onSubmit={handleAddDesignation} className="flex gap-2 mb-4">
-                <input 
-                  type="text" 
-                  value={newDesignation}
-                  onChange={(e) => setNewDesignation(e.target.value)}
-                  placeholder="New designation (e.g. Graphic Designer)"
-                  className="settings-input flex-1"
-                />
-                <button type="submit" disabled={saving.designation} className="btn-primary-blue px-6">
+                <div className="relative flex-1">
+                  <input 
+                    type="text" 
+                    value={newDesignation}
+                    onChange={(e) => setNewDesignation(e.target.value)}
+                    placeholder="Add job title (e.g. Lead Developer)"
+                    className="settings-input w-full"
+                  />
+                  {newDesignation && designations.some(d => d.toLowerCase() === newDesignation.toLowerCase()) && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded">ALREADY EXISTS</span>
+                  )}
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={saving.designation || !newDesignation.trim() || designations.some(d => d.toLowerCase() === newDesignation.trim().toLowerCase())} 
+                  className="btn-primary-blue px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   {saving.designation ? '...' : 'Add'}
                 </button>
               </form>
               <div className="designation-list flex flex-wrap gap-2">
-                {designations.map((desig, idx) => (
-                  <div key={idx} className="desig-tag">
+                {designations.sort((a, b) => a.localeCompare(b)).map((desig, idx) => (
+                  <div key={idx} className="desig-tag group hover:border-blue-200 transition-all">
                     <span>{desig}</span>
-                    <button onClick={() => handleDeleteDesignation(idx)} className="text-slate-400 hover:text-red-500 ml-2">
+                    <button onClick={() => handleDeleteDesignation(idx)} className="text-slate-400 hover:text-red-500 ml-2 p-1 hover:bg-red-50 rounded-full transition-all opacity-0 group-hover:opacity-100">
                       <X size={12} />
                     </button>
                   </div>
                 ))}
                 {designations.length === 0 && (
-                  <p className="text-xs text-slate-400 italic">No custom designations added yet.</p>
+                  <div className="w-full text-center py-4 border-2 border-dashed border-slate-100 rounded-xl">
+                    <p className="text-xs text-slate-400 italic">No custom designations added yet.</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -452,29 +523,45 @@ const Settings = () => {
               <div className="mgmt-section mb-10">
                 <label className="text-sm font-bold text-slate-700 mb-3 block flex items-center gap-2">
                   <Network size={18} className="text-blue" /> 
-                  Organization Chart
+                  Organization Chart Image
                 </label>
                 <div className="flex gap-2">
-                  <input 
-                    type="text"
-                    value={orgChartUrl}
-                    onChange={(e) => setOrgChartUrl(e.target.value)}
-                    placeholder="Enter Image URL (e.g., https://...)"
-                    className="settings-input flex-1"
-                  />
+                  <div className="relative flex-1">
+                    <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="text"
+                      value={orgChartUrl}
+                      onChange={(e) => setOrgChartUrl(e.target.value)}
+                      placeholder="Paste Image URL (Google Drive/Imgur Link)..."
+                      className="settings-input pl-10"
+                    />
+                  </div>
                   <button 
                     onClick={handleSaveOrgChart}
                     disabled={saving.org}
-                    className="btn-primary-blue px-6 flex items-center gap-2"
+                    className="btn-primary-blue px-6 flex items-center gap-2 min-w-[120px] justify-center"
                   >
                     <Save size={16} />
-                    {saving.org ? 'Update' : 'Update'}
+                    {saving.org ? '...' : 'Update'}
                   </button>
                 </div>
-                {orgChartUrl && (
-                  <div className="mt-3 p-2 bg-slate-50 rounded-lg border border-slate-100 text-center">
-                    <p className="text-tiny text-slate-400 mb-2">Live Preview</p>
-                    <img src={orgChartUrl} alt="Org Chart Preview" className="max-h-32 mx-auto rounded border" />
+                {orgChartUrl ? (
+                  <div className="mt-3 p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center relative group">
+                    <p className="text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-widest">Live Preview Preview</p>
+                    <div className="relative overflow-hidden rounded-lg shadow-sm bg-white p-2">
+                       <img src={orgChartUrl} alt="Org Chart Preview" className="max-h-48 mx-auto rounded transition-transform group-hover:scale-[1.02]" />
+                       <button 
+                        className="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur shadow rounded-lg text-blue hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-all"
+                        onClick={() => window.open(orgChartUrl, '_blank')}
+                       >
+                        <Eye size={16} />
+                       </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 p-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center">
+                    <Network size={32} className="text-slate-200 mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">No chart URL provided. Add one to show the hierarchy.</p>
                   </div>
                 )}
               </div>

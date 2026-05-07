@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Download, Search, File, Loader2, ExternalLink, Calendar, User, AlertCircle, X, Copy, Check, Eye, Mail, Users, AlertTriangle, CreditCard, ClipboardList, ShieldCheck, Award } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, getDocs, where } from 'firebase/firestore';
 import { templatesContent } from '../data/templatesContent';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
@@ -29,14 +29,15 @@ const Documents = () => {
         'Offer Letter', 'Appointment Letter', 'Employment Contract', 'Internship Offer Letter',
         'Internship Completion Certificate', 'Experience Letter (Work Letter)', 'Employment Certificate',
         'Salary Certificate', 'Relieving Letter', 'Promotion Letter', 'Transfer Letter',
-        'Resignation Letter', 'Acceptance of Resignation Letter'
+        'Resignation Letter', 'Acceptance of Resignation Letter', 'Probation Completion Letter',
+        'Exit Interview Form', 'Employee Referral Bonus Policy'
       ]
     },
     {
       category: '⚠️ Disciplinary',
       icon: <AlertTriangle size={20} />,
       items: [
-        'Warning Letter', 'Final Warning Letter', 'Show Cause Notice', 'Suspension Letter', 'Termination Letter'
+        'Warning Letter', 'Final Warning Letter', 'Show Cause Notice', 'Suspension Letter', 'Termination Letter', 'Performance Improvement Plan (PIP)', 'Incident Report Form'
       ]
     },
     {
@@ -50,14 +51,14 @@ const Documents = () => {
       category: '📊 Daily / Internal',
       icon: <ClipboardList size={20} />,
       items: [
-        'Daily Work Report', 'Timesheet', 'Leave Application', 'Leave Approval Letter'
+        'Daily Work Report', 'Timesheet', 'Leave Application', 'Leave Approval Letter', 'Equipment Handover Letter', 'Code Review Feedback', 'Project Handover Document'
       ]
     },
     {
       category: '🔐 Legal',
       icon: <ShieldCheck size={20} />,
       items: [
-        'Non-Disclosure Agreement (NDA)', 'Service Agreement', 'Employee Agreement'
+        'Non-Disclosure Agreement (NDA)', 'Service Agreement', 'Employee Agreement', 'Software Developer Agreement', 'Remote Work Policy', 'Data Security & Privacy Acknowledgement'
       ]
     },
     {
@@ -70,18 +71,45 @@ const Documents = () => {
   ];
 
   useEffect(() => {
-    const q = query(collection(db, 'documents'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
+    setLoading(true);
+    // 1. Fetch Company-wide Repository Documents
+    const qDocs = query(collection(db, 'documents'), orderBy('createdAt', 'desc'));
+    
+    const unsubDocs = onSnapshot(qDocs, (snapshot) => {
+      const companyDocs = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        isPersonal: false
       }));
-      setDocuments(docs);
-      setLoading(false);
+
+      // 2. Fetch Personal Documents if the user is an employee
+      if (!isSuperAdmin && userData?.uid) {
+        const qPersonal = query(
+          collection(db, 'employee_documents'), 
+          where('employeeId', '==', userData.uid),
+          orderBy('createdAt', 'desc')
+        );
+
+        onSnapshot(qPersonal, (personalSnapshot) => {
+          const personalDocs = personalSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            name: doc.data().templateName || 'Personal Document',
+            isPersonal: true
+          }));
+          
+          // Combine both company docs and personal docs
+          setDocuments([...companyDocs, ...personalDocs]);
+          setLoading(false);
+        });
+      } else {
+        setDocuments(companyDocs);
+        setLoading(false);
+      }
     });
 
-    return () => unsub();
-  }, []);
+    return () => unsubDocs();
+  }, [isSuperAdmin, userData?.uid]);
 
   useEffect(() => {
     if (showSendModal) {
@@ -214,12 +242,14 @@ const Documents = () => {
         >
           Repository
         </button>
-        <button 
-          className={`tab-btn ${activeTab === 'templates' ? 'active' : ''}`}
-          onClick={() => setActiveTab('templates')}
-        >
-          Standard Templates
-        </button>
+        {isSuperAdmin && (
+          <button 
+            className={`tab-btn ${activeTab === 'templates' ? 'active' : ''}`}
+            onClick={() => setActiveTab('templates')}
+          >
+            Standard Templates
+          </button>
+        )}
       </div>
 
       {activeTab === 'repository' ? (
