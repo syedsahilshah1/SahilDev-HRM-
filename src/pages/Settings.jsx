@@ -1,4 +1,7 @@
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { db } from '../services/firebase';
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, deleteDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { 
   Shield, 
   Wallet, 
@@ -13,7 +16,13 @@ import {
   History,
   Mail,
   Server,
-  Lock
+  Lock,
+  FileText,
+  Network,
+  ShieldCheck,
+  Trash2,
+  Save,
+  Globe
 } from 'lucide-react';
 
 const Toggle = ({ enabled, setEnabled }) => (
@@ -70,6 +79,86 @@ const Settings = () => {
     password: '••••••••',
     encryption: 'TLS'
   });
+
+  const [companyPolicy, setCompanyPolicy] = useState('');
+  const [orgChartUrl, setOrgChartUrl] = useState('');
+  const [documents, setDocuments] = useState([]);
+  const [newDoc, setNewDoc] = useState({ name: '', category: '', url: '' });
+  const [saving, setSaving] = useState({ policy: false, org: false, doc: false });
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+
+    // Load Policy & Org Chart
+    const loadCompanyData = async () => {
+      const policyDoc = await getDoc(doc(db, 'settings', 'company_policy'));
+      if (policyDoc.exists()) setCompanyPolicy(policyDoc.data().content);
+
+      const orgDoc = await getDoc(doc(db, 'settings', 'org_chart'));
+      if (orgDoc.exists()) setOrgChartUrl(orgDoc.data().imageUrl);
+    };
+
+    loadCompanyData();
+
+    // Load Documents
+    const unsubDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
+      setDocuments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => unsubDocs();
+  }, [isSuperAdmin]);
+
+  const handleSavePolicy = async () => {
+    setSaving({ ...saving, policy: true });
+    try {
+      await setDoc(doc(db, 'settings', 'company_policy'), { content: companyPolicy });
+      alert('Policy updated successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update policy');
+    }
+    setSaving({ ...saving, policy: false });
+  };
+
+  const handleSaveOrgChart = async () => {
+    setSaving({ ...saving, org: true });
+    try {
+      await setDoc(doc(db, 'settings', 'org_chart'), { imageUrl: orgChartUrl });
+      alert('Org Chart updated successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update org chart');
+    }
+    setSaving({ ...saving, org: false });
+  };
+
+  const handleAddDocument = async (e) => {
+    e.preventDefault();
+    if (!newDoc.name || !newDoc.url) return;
+    setSaving({ ...saving, doc: true });
+    try {
+      await addDoc(collection(db, 'documents'), {
+        ...newDoc,
+        createdAt: serverTimestamp(),
+        uploadedBy: 'Admin'
+      });
+      setNewDoc({ name: '', category: '', url: '' });
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add document');
+    }
+    setSaving({ ...saving, doc: false });
+  };
+
+  const handleDeleteDocument = async (id) => {
+    if (window.confirm('Are you sure you want to delete this document?')) {
+      try {
+        await deleteDoc(doc(db, 'documents', id));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
 
   const roles = [
     { name: 'Superadmin', desc: 'FULL SYSTEM CONTROL', payroll: 'full', directory: 'full' },
@@ -220,6 +309,113 @@ const Settings = () => {
                 <span className="change-id">#45821</span>
              </div>
           </div>
+
+          {/* Company Resources Management */}
+          <div className="card company-mgmt-card mt-8">
+            <div className="card-header-row">
+              <div className="flex items-center gap-2">
+                <Globe size={20} className="text-primary" />
+                <h3>Company Resources Management</h3>
+              </div>
+            </div>
+
+            <div className="mgmt-grid p-6">
+              {/* Policy Editor */}
+              <div className="mgmt-section mb-8">
+                <label className="text-sm font-bold text-slate-700 mb-2 block flex items-center gap-2">
+                  <ShieldCheck size={16} /> Company Policy (HTML/Text)
+                </label>
+                <textarea 
+                  value={companyPolicy}
+                  onChange={(e) => setCompanyPolicy(e.target.value)}
+                  placeholder="Enter company policy content here..."
+                  className="settings-textarea"
+                />
+                <button 
+                  onClick={handleSavePolicy}
+                  disabled={saving.policy}
+                  className="btn-primary-blue mt-2 flex items-center gap-2"
+                >
+                  <Save size={16} />
+                  {saving.policy ? 'Saving...' : 'Update Policy'}
+                </button>
+              </div>
+
+              {/* Org Chart Editor */}
+              <div className="mgmt-section mb-8">
+                <label className="text-sm font-bold text-slate-700 mb-2 block flex items-center gap-2">
+                  <Network size={16} /> Organization Chart Image URL
+                </label>
+                <input 
+                  type="text"
+                  value={orgChartUrl}
+                  onChange={(e) => setOrgChartUrl(e.target.value)}
+                  placeholder="https://example.com/org-chart.png"
+                  className="settings-input"
+                />
+                <button 
+                  onClick={handleSaveOrgChart}
+                  disabled={saving.org}
+                  className="btn-primary-blue mt-2 flex items-center gap-2"
+                >
+                  <Save size={16} />
+                  {saving.org ? 'Saving...' : 'Update Org Chart'}
+                </button>
+              </div>
+
+              {/* Document Manager */}
+              <div className="mgmt-section">
+                <label className="text-sm font-bold text-slate-700 mb-4 block flex items-center gap-2">
+                  <FileText size={16} /> Document Repository
+                </label>
+                
+                <form onSubmit={handleAddDocument} className="add-doc-form mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input 
+                      type="text" 
+                      placeholder="Doc Name" 
+                      value={newDoc.name}
+                      onChange={(e) => setNewDoc({...newDoc, name: e.target.value})}
+                      className="settings-input"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Category" 
+                      value={newDoc.category}
+                      onChange={(e) => setNewDoc({...newDoc, category: e.target.value})}
+                      className="settings-input"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="File URL" 
+                      value={newDoc.url}
+                      onChange={(e) => setNewDoc({...newDoc, url: e.target.value})}
+                      className="settings-input"
+                    />
+                  </div>
+                  <button type="submit" disabled={saving.doc} className="btn-outline w-full mt-3 flex items-center justify-center gap-2">
+                    <Plus size={16} />
+                    Add Document
+                  </button>
+                </form>
+
+                <div className="doc-list">
+                  {documents.map(doc => (
+                    <div key={doc.id} className="doc-mgmt-item flex items-center justify-between p-3 border-b border-slate-100 last:border-0">
+                      <div>
+                        <p className="font-bold text-sm">{doc.name}</p>
+                        <p className="text-xs text-slate-500">{doc.category || 'General'}</p>
+                      </div>
+                      <button onClick={() => handleDeleteDocument(doc.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  {documents.length === 0 && <p className="text-center text-slate-400 py-4 text-sm">No documents added yet.</p>}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -233,8 +429,67 @@ const Settings = () => {
 
         .settings-grid {
           display: grid;
-          grid-template-columns: 350px 1fr;
+          grid-template-columns: 400px 1fr;
           gap: 2rem;
+        }
+
+        .settings-textarea {
+          width: 100%;
+          min-height: 200px;
+          padding: 0.75rem 1rem;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          font-size: 0.875rem;
+          outline: none;
+          transition: border-color 0.2s;
+          resize: vertical;
+        }
+
+        .settings-textarea:focus {
+          border-color: #2563eb;
+        }
+
+        .settings-input {
+          width: 100%;
+          padding: 0.75rem 1rem;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          font-size: 0.875rem;
+          outline: none;
+          transition: border-color 0.2s;
+        }
+
+        .settings-input:focus {
+          border-color: #2563eb;
+        }
+
+        .mt-8 { margin-top: 2rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-3 { margin-top: 0.75rem; }
+        .mb-8 { margin-bottom: 2rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .p-6 { padding: 1.5rem; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+        .w-full { width: 100%; }
+        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+        
+        @media (min-width: 768px) {
+          .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+
+        .text-red-500 { color: #ef4444; }
+        .hover\:bg-red-50:hover { background-color: #fef2f2; }
+
+        .company-mgmt-card {
+          padding: 0;
         }
 
         .left-column {

@@ -60,6 +60,24 @@ const Attendance = () => {
     return () => unsubscribe();
   }, [isSuperAdmin, userData?.role, currentUser?.uid]);
 
+  // Calculate Leave Summary
+  const calculateLeaveTaken = (type) => {
+    return applications
+      .filter(app => app.status === 'APPROVED' && app.type === type)
+      .reduce((total, app) => {
+        const start = new Date(app.startDate);
+        const end = new Date(app.endDate);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        return total + diffDays;
+      }, 0);
+  };
+
+  const annualTaken = calculateLeaveTaken('Annual Leave');
+  const sickTaken = calculateLeaveTaken('Sick Leave');
+  const annualTotal = 24;
+  const sickTotal = 10;
+
   const handleApply = async (e) => {
     e.preventDefault();
     if (!formData.startDate || !formData.endDate) return alert('Please select dates');
@@ -341,16 +359,26 @@ const Attendance = () => {
              <div className="summary-item">
                 <div className="item-label">
                    <span>Annual Leave</span>
-                   <span>18 / 24 Days</span>
+                   <span>{annualTaken} / {annualTotal} Days</span>
                 </div>
-                <div className="progress-bar"><div className="progress" style={{ width: '75%' }}></div></div>
+                <div className="progress-bar">
+                  <div 
+                    className="progress" 
+                    style={{ width: `${Math.min((annualTaken / annualTotal) * 100, 100)}%` }}
+                  ></div>
+                </div>
              </div>
              <div className="summary-item">
                 <div className="item-label">
                    <span>Sick Leave</span>
-                   <span>2 / 10 Days</span>
+                   <span>{sickTaken} / {sickTotal} Days</span>
                 </div>
-                <div className="progress-bar"><div className="progress blue" style={{ width: '20%' }}></div></div>
+                <div className="progress-bar">
+                  <div 
+                    className="progress blue" 
+                    style={{ width: `${Math.min((sickTaken / sickTotal) * 100, 100)}%` }}
+                  ></div>
+                </div>
              </div>
           </div>
 

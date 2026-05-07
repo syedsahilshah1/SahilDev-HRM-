@@ -10,6 +10,9 @@ import Tasks from './pages/Tasks';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import CompanyPolicy from './pages/CompanyPolicy';
+import OrgChart from './pages/OrgChart';
+import Documents from './pages/Documents';
 import { useAuth } from './context/AuthContext';
 
 // Protected Route Component
@@ -62,6 +65,9 @@ function App() {
                     <Route path="/tasks" element={<Tasks />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/profile" element={<Profile />} />
+                    <Route path="/policy" element={<CompanyPolicy />} />
+                    <Route path="/org-chart" element={<OrgChart />} />
+                    <Route path="/documents" element={<Documents />} />
                     <Route path="*" element={
                       <div className="card">
                         <h1>Module Coming Soon</h1>

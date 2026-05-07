@@ -5,7 +5,7 @@ import { db } from '../services/firebase';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 
 const Employees = () => {
-  const [activeTab, setActiveTab] = useState('All Teams');
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,14 +15,12 @@ const Employees = () => {
     fullName: '',
     email: '',
     role: 'Developer',
-    dept: 'Development',
     salary: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const { addEmployee, userData, isSuperAdmin } = useAuth();
-  const teams = ['All Teams', 'IT', 'Development', 'HR', 'Sales', 'Marketing', 'Management'];
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('fullName', 'asc'));
@@ -31,7 +29,6 @@ const Employees = () => {
         uid: doc.id, 
         ...doc.data(),
         role: doc.data().role?.toLowerCase() || 'developer',
-        dept: doc.data().dept || 'Unassigned'
       }));
       setEmployees(emps);
       setLoading(false);
@@ -46,9 +43,9 @@ const Employees = () => {
     try {
       setError('');
       setSubmitting(true);
-      await addEmployee(formData.email, formData.fullName, formData.role, formData.dept, formData.salary);
+      await addEmployee(formData.email, formData.fullName, formData.role, '', formData.salary);
       setShowAddModal(false);
-      setFormData({ fullName: '', email: '', role: 'Developer', dept: 'Development', salary: '' });
+      setFormData({ fullName: '', email: '', role: 'Developer', salary: '' });
     } catch (err) {
       setError('Failed to add employee: ' + err.message);
     } finally {
@@ -68,20 +65,13 @@ const Employees = () => {
   const handleUpdateUserRole = async (uid, newRole) => {
     try {
       const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, { role: newRole.toLowerCase() });
+      await updateDoc(userRef, { role: newRole });
     } catch (err) {
       console.error('Error updating role:', err);
     }
   };
 
-  const handleUpdateUserDept = async (uid, newDept) => {
-    try {
-      const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, { dept: newDept });
-    } catch (err) {
-      console.error('Error updating department:', err);
-    }
-  };
+
 
   const handleUpdateUserPermission = async (uid, permissionKey, value) => {
     try {
@@ -137,17 +127,7 @@ const Employees = () => {
         </div>
       </header>
 
-      <div className="tabs">
-        {teams.map(team => (
-          <button 
-            key={team}
-            className={`tab ${activeTab === team ? 'active' : ''}`}
-            onClick={() => setActiveTab(team)}
-          >
-            {team}
-          </button>
-        ))}
-      </div>
+
 
       <div className="employee-list">
         {loading ? (
@@ -156,14 +136,13 @@ const Employees = () => {
             Loading team members...
           </div>
         ) : employees.filter(emp => 
-            (activeTab === 'All Teams' || emp.dept === activeTab) &&
-            (emp.fullName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || 
-             emp.email?.toLowerCase()?.includes(searchTerm.toLowerCase()))
+             emp.fullName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || 
+             emp.email?.toLowerCase()?.includes(searchTerm.toLowerCase())
           ).length > 0 ? (
           employees
-            .filter(emp => (activeTab === 'All Teams' || emp.dept === activeTab) &&
-                           (emp.fullName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || 
-                            emp.email?.toLowerCase()?.includes(searchTerm.toLowerCase())))
+            .filter(emp => 
+                            emp.fullName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || 
+                            emp.email?.toLowerCase()?.includes(searchTerm.toLowerCase()))
             .map((emp) => (
             <div key={emp.uid} className="employee-list-item card">
               <div className="emp-main">
@@ -173,7 +152,7 @@ const Employees = () => {
                 </div>
                 <div className="emp-info">
                   <h3>{emp.fullName}</h3>
-                  <p>{emp.role} • {emp.dept} {emp.salary ? `• $${emp.salary}` : ''}</p>
+                  <p>{emp.role} {emp.salary ? `• $${emp.salary}` : ''}</p>
                 </div>
               </div>
               <div className="emp-right">
@@ -185,28 +164,13 @@ const Employees = () => {
                 
                 {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && emp.role?.toLowerCase() !== 'superadmin' && (
                   <div className="admin-controls">
-                    <select 
-                      className="role-selector-mini"
-                      value={emp.role.charAt(0).toUpperCase() + emp.role.slice(1)}
+                    <input 
+                      type="text"
+                      className="role-input-mini"
+                      placeholder="Role"
+                      value={emp.role || ''}
                       onChange={(e) => handleUpdateUserRole(emp.uid, e.target.value)}
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="manager">Manager</option>
-                      <option value="developer">Developer</option>
-                      <option value="project manager">Project Manager</option>
-                      <option value="team lead">Team Lead</option>
-                      <option value="designer">Designer</option>
-                      <option value="hr">HR</option>
-                    </select>
-                    <select 
-                      className="role-selector-mini"
-                      value={emp.dept}
-                      onChange={(e) => handleUpdateUserDept(emp.uid, e.target.value)}
-                    >
-                      {teams.filter(t => t !== 'All Teams').map(t => (
-                        <option key={t}>{t}</option>
-                      ))}
-                    </select>
+                    />
                     <input 
                       type="number" 
                       className="salary-input-mini"
@@ -298,35 +262,13 @@ const Employees = () => {
               <div className="form-row">
                 <div className="form-group flex-1">
                   <label>Role</label>
-                  <select 
+                  <input 
+                    type="text"
                     className="modal-input"
+                    placeholder="e.g. Graphic Designer"
                     value={formData.role}
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="manager">Manager</option>
-                    <option value="developer">Developer</option>
-                    <option value="project manager">Project Manager</option>
-                    <option value="team lead">Team Lead</option>
-                    <option value="designer">Designer</option>
-                    <option value="hr">HR</option>
-                  </select>
-                </div>
-                <div className="form-group flex-1">
-                  <label>Department</label>
-                  <select 
-                    className="modal-input"
-                    value={formData.dept}
-                    onChange={(e) => setFormData({...formData, dept: e.target.value})}
-                  >
-                    <option>IT</option>
-                    <option>Development</option>
-                    <option>HR</option>
-                    <option>Sales</option>
-                    <option>Marketing</option>
-                    <option>Design</option>
-                    <option>Management</option>
-                  </select>
+                  />
                 </div>
               </div>
               
@@ -607,14 +549,21 @@ const Employees = () => {
           }
         }
 
-        .role-selector-mini {
-          padding: 4px 8px;
-          border-radius: 6px;
+        .role-input-mini {
+          padding: 6px 12px;
+          border-radius: 8px;
           border: 1px solid #e2e8f0;
           font-size: 0.75rem;
           font-weight: 600;
           background: #f8fafc;
           outline: none;
+          width: 140px;
+          transition: border-color 0.2s;
+        }
+
+        .role-input-mini:focus {
+          border-color: #2563eb;
+          background: white;
         }
 
         .salary-input-mini {

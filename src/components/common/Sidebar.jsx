@@ -64,7 +64,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           </div>
           <div className="user-details">
             <h3 className="user-name">{userData?.fullName || currentUser?.displayName || 'Sahil Dev'}</h3>
-            <p className="user-dept">{userData?.role?.toUpperCase() || 'STAFF'} • {userData?.dept || 'Unassigned'}</p>
+            <p className="user-dept">{userData?.role?.toUpperCase() || 'STAFF'}</p>
           </div>
         </div>
       </div>
