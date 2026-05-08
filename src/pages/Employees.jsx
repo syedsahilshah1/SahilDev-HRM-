@@ -1,27 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, ChevronRight, X, Trash2, UserX, UserCheck, MoreVertical } from 'lucide-react';
+import { Search, Plus, ChevronRight, X, Trash2, UserX, UserCheck, MoreVertical, Edit3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
+import { Link } from 'react-router-dom';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 
 const Employees = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [openMenu, setOpenMenu] = useState(null);
   const [employees, setEmployees] = useState([]);
-  const [designations, setDesignations] = useState(['Developer', 'Graphic Designer', 'Project Manager', 'QA Engineer', 'UI/UX Designer', 'HR Manager']);
+  const [designations, setDesignations] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeMenu, setActiveMenu] = useState(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    role: 'Developer',
-    salary: ''
+    role: 'staff',
+    designation: '',
+    salary: '',
+    dept: ''
   });
+  const [editingMember, setEditingMember] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const { addEmployee, userData, isSuperAdmin } = useAuth();
+
+  const menuRef = React.useRef(null);
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('fullName', 'asc'));
@@ -29,22 +39,44 @@ const Employees = () => {
       const emps = snapshot.docs.map(doc => ({ 
         uid: doc.id, 
         ...doc.data(),
-        role: doc.data().role?.toLowerCase() || 'developer',
+        role: doc.data().role || 'staff',
+        designation: doc.data().designation || 'Developer'
       }));
       setEmployees(emps);
       setLoading(false);
     });
 
-    // Load Designations
-    const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), (doc) => {
-      if (doc.exists() && doc.data().list) {
-        setDesignations(doc.data().list);
+    // Load Designations - Ensure we use the correct path and structure
+    const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), (docSnap) => {
+      if (docSnap.exists()) {
+        setDesignations(docSnap.data().list || []);
+      } else {
+        // Fallback if document doesn't exist
+        setDesignations(['Software Engineer', 'Product Manager', 'Designer', 'HR Manager', 'Sales Executive']);
       }
     });
+
+    // Load Departments
+    const unsubDept = onSnapshot(doc(db, 'settings', 'departments'), (docSnap) => {
+      if (docSnap.exists()) {
+        setDepartments(docSnap.data().list || []);
+      } else {
+        setDepartments(['IT', 'HR', 'Marketing', 'Sales', 'Operations']);
+      }
+    });
+
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.menu-container')) {
+        setOpenMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
       unsubscribe();
       unsubDesig();
+      unsubDept();
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -55,11 +87,35 @@ const Employees = () => {
     try {
       setError('');
       setSubmitting(true);
-      await addEmployee(formData.email, formData.fullName, formData.role, '', formData.salary);
+      await addEmployee(formData.email, formData.fullName, formData.designation, formData.role, formData.dept, formData.salary);
       setShowAddModal(false);
-      setFormData({ fullName: '', email: '', role: 'Developer', salary: '' });
+      setFormData({ fullName: '', email: '', role: 'staff', designation: '', salary: '', dept: '' });
     } catch (err) {
       setError('Failed to add employee: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditMember = async (e) => {
+    e.preventDefault();
+    if (!editingMember.fullName) return setError('Full Name is required.');
+    
+    try {
+      setError('');
+      setSubmitting(true);
+      const userRef = doc(db, 'users', editingMember.uid);
+      await updateDoc(userRef, {
+        fullName: editingMember.fullName,
+        role: editingMember.role,
+        designation: editingMember.designation,
+        salary: editingMember.salary,
+        dept: editingMember.dept || 'Unassigned'
+      });
+      setShowEditModal(false);
+      setEditingMember(null);
+    } catch (err) {
+      setError('Failed to update member: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -156,7 +212,7 @@ const Employees = () => {
                             emp.fullName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || 
                             emp.email?.toLowerCase()?.includes(searchTerm.toLowerCase()))
             .map((emp) => (
-            <div key={emp.uid} className="employee-list-item card">
+            <div key={emp.uid} className={`employee-list-item card ${openMenu === emp.uid ? 'menu-open' : ''}`}>
               <div className="emp-main">
                 <div className="emp-photo">
                   <div className="avatar-placeholder">{emp.fullName?.charAt(0)}</div>
@@ -164,7 +220,10 @@ const Employees = () => {
                 </div>
                 <div className="emp-info">
                   <h3>{emp.fullName}</h3>
-                  <p>{emp.role} {emp.salary ? `• $${emp.salary}` : ''}</p>
+                  <p>
+                    <span className="font-bold text-slate-700">{emp.designation}</span> 
+                    {emp.salary ? ` • $${emp.salary}` : ''} • {emp.dept || 'Unassigned'}
+                  </p>
                 </div>
               </div>
               <div className="emp-right">
@@ -174,58 +233,70 @@ const Employees = () => {
                   </span>
                 </div>
                 
-                {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && emp.role?.toLowerCase() !== 'superadmin' && (
-                  <div className="admin-controls">
-                    <select 
-                      className="role-input-mini"
-                      value={emp.role || ''}
-                      onChange={(e) => handleUpdateUserRole(emp.uid, e.target.value)}
-                    >
-                      {designations.map(desig => (
-                        <option key={desig} value={desig}>{desig}</option>
-                      ))}
-                      {emp.role && !designations.includes(emp.role) && (
-                        <option value={emp.role}>{emp.role}</option>
-                      )}
-                    </select>
-                    <input 
-                      type="number" 
-                      className="salary-input-mini"
-                      placeholder="Salary"
-                      value={emp.salary || ''}
-                      onChange={(e) => handleUpdateUserSalary(emp.uid, e.target.value)}
-                    />
-                    {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
-                      <div className="permission-toggle">
-                        <label className="switch">
-                          <input 
-                            type="checkbox" 
-                            checked={emp.permissions?.canViewPayroll || false}
-                            onChange={(e) => handleUpdateUserPermission(emp.uid, 'canViewPayroll', e.target.checked)}
-                          />
-                          <span className="slider round"></span>
-                        </label>
-                        <span className="permission-label">Payroll Access</span>
-                      </div>
-                    )}
+                {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
+                  <div className="flex items-center gap-4">
+                    <div className="permission-toggle hidden md:flex">
+                      <label className="switch">
+                        <input 
+                          type="checkbox" 
+                          checked={emp.permissions?.canViewPayroll || false}
+                          onChange={(e) => handleUpdateUserPermission(emp.uid, 'canViewPayroll', e.target.checked)}
+                        />
+                        <span className="slider round"></span>
+                      </label>
+                      <span className="permission-label">Payroll</span>
+                    </div>
+                    
                     <button 
                       className={`btn-status ${emp.status === 'Active' ? 'deactivate' : 'activate'}`}
                       onClick={() => handleUpdateUserStatus(emp.uid, emp.status === 'Active' ? 'Deactivated' : 'Active')}
                     >
-                      {emp.status === 'Active' ? (
-                        <><UserX size={14} /> <span>Deactivate</span></>
-                      ) : (
-                        <><UserCheck size={14} /> <span>Activate</span></>
-                      )}
-                    </button>
-                    <button className="btn-delete" onClick={() => handleDeleteUser(emp.uid)} title="Permanently Remove User">
-                      <Trash2 size={18} />
+                      {emp.status === 'Active' ? <UserX size={16} /> : <UserCheck size={16} />}
                     </button>
                   </div>
                 )}
                 <div className="emp-actions-end">
-                  <div className="p-2 hover:bg-slate-100 rounded-full cursor-pointer">
-                    <MoreVertical size={18} className="text-slate-400" />
+                  <div className={`relative menu-container ${openMenu === emp.uid ? 'active' : ''}`}>
+                    <button 
+                      className="icon-btn-ghost menu-trigger"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setOpenMenu(openMenu === emp.uid ? null : emp.uid);
+                      }}
+                      title="Actions"
+                      style={{ padding: '12px' }}
+                    >
+                      <MoreVertical size={20} style={{ pointerEvents: 'none' }} />
+                    </button>
+                    
+                    {openMenu === emp.uid && (
+                      <div className="dropdown-menu card shadow-lg">
+                        <Link to={`/profile/${emp.uid}`} className="dropdown-item">
+                          <UserCheck size={16} />
+                          <span>View Profile</span>
+                        </Link>
+                        {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
+                          <>
+                            <button className="dropdown-item" onClick={() => {
+                              setEditingMember({ ...emp });
+                              setShowEditModal(true);
+                              setOpenMenu(null);
+                            }}>
+                              <Edit3 size={16} />
+                              <span>Edit Member</span>
+                            </button>
+                            <button className="dropdown-item text-danger" onClick={() => {
+                              handleDeleteUser(emp.uid);
+                              setOpenMenu(null);
+                            }}>
+                              <Trash2 size={16} />
+                              <span>Remove Member</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -236,8 +307,20 @@ const Employees = () => {
         )}
       </div>
 
-      {(isSuperAdmin || userData?.role === 'admin') && (
-        <button className="fab-add" onClick={() => setShowAddModal(true)}>
+      {(isSuperAdmin || userData?.role?.toLowerCase() === 'admin') && (
+        <button 
+          className="fab-add" 
+          onClick={() => {
+            setShowAddModal(true);
+            // Pre-select first options if available
+            setFormData({
+              ...formData,
+              role: designations[0] || '',
+              dept: departments[0] || 'Unassigned'
+            });
+          }} 
+          title="Add Member"
+        >
           <Plus size={24} />
         </button>
       )}
@@ -278,20 +361,128 @@ const Employees = () => {
               </div>
               <div className="form-row">
                 <div className="form-group flex-1">
-                  <label>Role / Designation</label>
+                  <label>Access Level (Role)</label>
                   <select 
                     className="modal-input"
                     value={formData.role}
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
                   >
+                    <option value="staff">Staff / Employee</option>
+                    <option value="admin">Administrator</option>
+                    <option value="hr">HR Manager</option>
+                  </select>
+                </div>
+                <div className="form-group flex-1">
+                  <label>Job Title (Designation)</label>
+                  <select 
+                    className="modal-input"
+                    value={formData.designation}
+                    onChange={(e) => setFormData({...formData, designation: e.target.value})}
+                  >
+                    <option value="">Select Title</option>
                     {designations.map(desig => (
                       <option key={desig} value={desig}>{desig}</option>
                     ))}
-                    {!designations.includes(formData.role) && (
-                      <option value={formData.role}>{formData.role}</option>
-                    )}
                   </select>
                 </div>
+              </div>
+              
+               <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>Department</label>
+                  <select 
+                    className="modal-input"
+                    value={formData.dept}
+                    onChange={(e) => setFormData({...formData, dept: e.target.value})}
+                  >
+                    {departments.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group flex-1">
+                  <label>Base Salary (Monthly)</label>
+                  <input 
+                    type="number" 
+                    className="modal-input" 
+                    placeholder="e.g. 5000"
+                    value={formData.salary}
+                    onChange={(e) => setFormData({...formData, salary: e.target.value})}
+                  />
+                </div>
+              </div>
+              
+              <button type="submit" className="submit-btn" disabled={submitting}>
+                {submitting ? 'Creating Account...' : 'Add Member'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingMember && (
+        <div className="modal-overlay">
+          <div className="modal-content card shadow-xl">
+            <div className="modal-header">
+              <h2>Edit Member</h2>
+              <button className="close-btn" onClick={() => {
+                setShowEditModal(false);
+                setEditingMember(null);
+              }}><X size={20} /></button>
+            </div>
+            
+            {error && <div className="alert alert-error mb-4">{error}</div>}
+            
+            <form onSubmit={handleEditMember}>
+              <div className="form-group">
+                <label>Full Name</label>
+                <input 
+                  type="text" 
+                  className="modal-input" 
+                  placeholder="Enter full name"
+                  value={editingMember.fullName}
+                  onChange={(e) => setEditingMember({...editingMember, fullName: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>Access Level (Role)</label>
+                  <select 
+                    className="modal-input"
+                    value={editingMember.role}
+                    onChange={(e) => setEditingMember({...editingMember, role: e.target.value})}
+                  >
+                    <option value="staff">Staff / Employee</option>
+                    <option value="admin">Administrator</option>
+                    <option value="hr">HR Manager</option>
+                  </select>
+                </div>
+                <div className="form-group flex-1">
+                  <label>Job Title (Designation)</label>
+                  <select 
+                    className="modal-input"
+                    value={editingMember.designation}
+                    onChange={(e) => setEditingMember({...editingMember, designation: e.target.value})}
+                  >
+                    {designations.map(desig => (
+                      <option key={desig} value={desig}>{desig}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Department</label>
+                <select 
+                  className="modal-input"
+                  value={editingMember.dept || ''}
+                  onChange={(e) => setEditingMember({...editingMember, dept: e.target.value})}
+                >
+                  <option value="" disabled>Select Department</option>
+                  {departments.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
               </div>
               
               <div className="form-group">
@@ -300,13 +491,13 @@ const Employees = () => {
                   type="number" 
                   className="modal-input" 
                   placeholder="e.g. 5000"
-                  value={formData.salary}
-                  onChange={(e) => setFormData({...formData, salary: e.target.value})}
+                  value={editingMember.salary}
+                  onChange={(e) => setEditingMember({...editingMember, salary: e.target.value})}
                 />
               </div>
               
               <button type="submit" className="submit-btn" disabled={submitting}>
-                {submitting ? 'Creating Account...' : 'Add Member'}
+                {submitting ? 'Updating...' : 'Save Changes'}
               </button>
             </form>
           </div>
@@ -321,6 +512,78 @@ const Employees = () => {
           flex-direction: column;
           gap: 1.5rem;
           padding-bottom: 5rem;
+        }
+
+        .relative { position: relative; }
+        
+        .menu-container.active {
+          z-index: 999;
+        }
+
+        .dropdown-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          z-index: 1000;
+          background: white;
+          min-width: 200px;
+          border-radius: 12px;
+          padding: 0.5rem;
+          border: 1px solid #e2e8f0;
+          margin-top: 0.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .icon-btn-ghost {
+          background: transparent;
+          border: none;
+          padding: 8px;
+          border-radius: 50%;
+          cursor: pointer;
+          color: #94a3b8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+
+        .icon-btn-ghost:hover {
+          background: #f1f5f9;
+          color: #1e293b;
+        }
+
+        .dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.75rem 1rem;
+          border-radius: 8px;
+          color: #475569;
+          font-size: 0.875rem;
+          font-weight: 600;
+          text-decoration: none;
+          background: transparent;
+          border: none;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .dropdown-item:hover {
+          background: #f1f5f9;
+          color: #0f172a;
+        }
+
+        .dropdown-item.text-danger {
+          color: #ef4444;
+        }
+
+        .dropdown-item.text-danger:hover {
+          background: #fef2f2;
         }
 
         .page-header {
@@ -401,6 +664,11 @@ const Employees = () => {
           transition: all 0.2s ease;
           flex-wrap: wrap;
           gap: 1.5rem;
+          position: relative;
+        }
+
+        .employee-list-item.menu-open {
+          z-index: 50;
         }
 
         .employee-list-item:hover {

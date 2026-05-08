@@ -29,7 +29,8 @@ const Dashboard = () => {
   const [stats, setStats] = useState({
     totalEmployees: 0,
     activeTasks: 0,
-    pendingLeaves: 0
+    pendingLeaves: 0,
+    weeklyPresence: [0, 0, 0, 0, 0]
   });
 
   const [todayRecord, setTodayRecord] = useState(null);
@@ -115,14 +116,60 @@ const Dashboard = () => {
         ...doc.data() 
       }));
       setPendingApprovals(data);
+      setStats(prev => ({ ...prev, pendingLeaves: snapshot.size }));
+    });
+
+    // Weekly Presence Logic
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1); // Monday
+    startOfWeek.setHours(0,0,0,0);
+
+    const attendQuery = query(
+      collection(db, 'daily_attendance'),
+      where('createdAt', '>=', Timestamp.fromDate(startOfWeek))
+    );
+
+    const unsubscribeAttendance = onSnapshot(attendQuery, (snapshot) => {
+      const dailyCounts = [0, 0, 0, 0, 0]; // M T W T F
+      snapshot.docs.forEach(doc => {
+        const date = doc.data().createdAt?.toDate();
+        if (date) {
+          const day = date.getDay(); // 0 is Sun, 1 is Mon...
+          if (day >= 1 && day <= 5) {
+            dailyCounts[day - 1]++;
+          }
+        }
+      });
+      setStats(prev => ({ ...prev, weeklyPresence: dailyCounts }));
+    });
+
+    // Recent Activity Logic
+    const activityQuery = query(collection(db, 'daily_attendance'), orderBy('createdAt', 'desc'), where('createdAt', '!=', null));
+    const unsubscribeActivity = onSnapshot(activityQuery, (snapshot) => {
+      const activities = snapshot.docs.slice(0, 5).map(doc => {
+        const data = doc.data();
+        const time = data.createdAt?.toDate();
+        return {
+          title: `${data.userName} checked in`,
+          time: time ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
+          icon: <LogIn size={16} />,
+          bg: '#eff6ff',
+          color: '#2563eb'
+        };
+      });
+      setRecentActivity(activities);
     });
 
     return () => {
       unsubscribeUsers();
       unsubscribeTasks();
       unsubscribeLeaves();
+      unsubscribeAttendance();
+      unsubscribeActivity();
     };
   }, []);
+
+  const [recentActivity, setRecentActivity] = useState([]);
   return (
     <div className="dashboard">
       <header className="dashboard-header">
@@ -144,7 +191,7 @@ const Dashboard = () => {
             <div className="card-header-row">
               <div className="card-title-group">
                 <h3>Team Overview</h3>
-                <p className="project-tag">PROJECT: APOLLO PHASE II</p>
+                <p className="project-tag">HRM SYSTEM LIVE</p>
               </div>
               <div className="flex items-center gap-2">
                 <Users size={24} className="text-blue" />
@@ -174,14 +221,19 @@ const Dashboard = () => {
             <h3>Weekly Presence</h3>
             <div className="presence-chart">
                <div className="chart-bars">
-                  {['M', 'T', 'W', 'T', 'F'].map((day, idx) => (
-                    <div key={idx} className="bar-group">
-                       <div className="bar-container">
-                          <div className="bar-fill" style={{ height: '0%' }}></div>
-                       </div>
-                       <span className="day-label">{day}</span>
-                    </div>
-                  ))}
+                  {['M', 'T', 'W', 'T', 'F'].map((day, idx) => {
+                    const count = stats.weeklyPresence?.[idx] || 0;
+                    const max = Math.max(...(stats.weeklyPresence || [1]), 1);
+                    const height = (count / max) * 100;
+                    return (
+                      <div key={idx} className="bar-group">
+                         <div className="bar-container">
+                            <div className="bar-fill" style={{ height: `${height}%` }}></div>
+                         </div>
+                         <span className="day-label">{day}</span>
+                      </div>
+                    );
+                  })}
                </div>
             </div>
           </div>
@@ -283,9 +335,9 @@ const Dashboard = () => {
           <div className="card activity-card">
             <h3>Recent Team Activity</h3>
             <div className="activity-list">
-              {[].map((activity, idx) => (
+              {recentActivity.map((activity, idx) => (
                 <div key={idx} className="activity-item">
-                  <div className="activity-icon-box" style={{ background: activity.bg }}>
+                  <div className="activity-icon-box" style={{ background: activity.bg, color: activity.color }}>
                     {activity.icon}
                   </div>
                   <div className="activity-text">
@@ -294,6 +346,7 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
+              {recentActivity.length === 0 && <p className="text-muted text-xs text-center py-4">No recent activity.</p>}
             </div>
           </div>
         </div>

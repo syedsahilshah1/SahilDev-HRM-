@@ -10,8 +10,9 @@ import {
   updatePassword,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, increment, Timestamp } from 'firebase/firestore';
-import { auth, db } from '../services/firebase';
+import { doc, setDoc, getDoc, updateDoc, increment, Timestamp, collection, addDoc, deleteDoc } from 'firebase/firestore';
+import { auth, db, storage } from '../services/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
@@ -46,7 +47,7 @@ export const AuthProvider = ({ children }) => {
     return getAuth(secondaryApp);
   };
 
-  const addEmployee = async (email, fullName, role = 'Developer', dept = 'Unassigned', salary = '0') => {
+  const addEmployee = async (email, fullName, designation = 'Developer', role = 'staff', dept = 'Unassigned', salary = '0') => {
     const sAuth = getSecondaryAuth();
     const userCredential = await createUserWithEmailAndPassword(sAuth, email, email);
     const user = userCredential.user;
@@ -58,6 +59,7 @@ export const AuthProvider = ({ children }) => {
       email,
       fullName,
       role: email === SUPER_ADMIN_EMAIL ? 'superadmin' : role,
+      designation,
       createdAt: new Date().toISOString(),
       dept,
       salary,
@@ -181,7 +183,8 @@ export const AuthProvider = ({ children }) => {
              uid: user.uid,
              email: user.email,
              fullName: user.displayName || 'New User',
-             role: user.email === SUPER_ADMIN_EMAIL ? 'superadmin' : 'Developer',
+             role: user.email === SUPER_ADMIN_EMAIL ? 'superadmin' : 'staff',
+             designation: 'Developer',
              createdAt: new Date().toISOString(),
              dept: 'Unassigned',
              status: 'Active'
@@ -217,12 +220,46 @@ export const AuthProvider = ({ children }) => {
     setUserData(prev => ({ ...prev, ...data }));
   };
 
+  const uploadUserDocument = async (file, fileName, fileType) => {
+    if (!auth.currentUser) return;
+
+    // 1. Upload to Storage
+    const storageRef = ref(storage, `documents/${auth.currentUser.uid}/${Date.now()}_${fileName}`);
+    const snapshot = await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+
+    // 2. Save metadata to Firestore
+    const docData = {
+      name: fileName,
+      type: fileType,
+      url: downloadURL,
+      storagePath: snapshot.ref.fullPath,
+      size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+      createdAt: new Date().toISOString()
+    };
+
+    await addDoc(collection(db, 'users', auth.currentUser.uid, 'documents'), docData);
+  };
+
+  const deleteUserDocument = async (docId, storagePath) => {
+    if (!auth.currentUser) return;
+
+    // 1. Delete from Storage
+    const storageRef = ref(storage, storagePath);
+    await deleteObject(storageRef);
+
+    // 2. Delete from Firestore
+    await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'documents', docId));
+  };
+
   const value = {
     currentUser,
     userData,
     addEmployee,
     updateUserPassword,
     updateUserProfile,
+    uploadUserDocument,
+    deleteUserDocument,
     resetPassword,
     login,
     logout,

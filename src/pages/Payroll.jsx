@@ -8,7 +8,10 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  Calendar,
+  History,
+  History as HistoryIcon
 } from 'lucide-react';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, writeBatch } from 'firebase/firestore';
@@ -19,6 +22,8 @@ const Payroll = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeDept, setActiveDept] = useState('All Departments');
+  const [reportDate, setReportDate] = useState(new Date());
+  const [showReportType, setShowReportType] = useState(false);
 
   // Standardized role check
   const userRole = userData?.role?.toLowerCase();
@@ -68,23 +73,37 @@ const Payroll = () => {
   const processedCount = filteredEmployees.filter(emp => emp.payrollStatus === 'Paid').length;
   const pendingCount = filteredEmployees.length - processedCount;
 
-  const handleExportCSV = () => {
+  const handleExportCSV = (type = 'current') => {
     if (filteredEmployees.length === 0) return alert('No data to export');
-    const headers = ["Employee Name", "Department", "Salary", "Status"];
-    const rows = filteredEmployees.map(emp => [
+    
+    let dataToExport = filteredEmployees;
+    let filename = `payroll_report_${activeDept.replace(' ', '_')}`;
+    
+    if (type === 'monthly') {
+      filename = `monthly_payroll_${reportDate.toLocaleString('default', { month: 'short', year: 'numeric' })}`;
+    } else if (type === 'yearly') {
+      filename = `yearly_payroll_${reportDate.getFullYear()}`;
+    }
+
+    const headers = ["Employee Name", "Department", "Designation", "Salary", "Status", "Period"];
+    const rows = dataToExport.map(emp => [
       `"${emp.fullName}"`,
       `"${emp.dept || 'Unassigned'}"`,
+      `"${emp.role || 'Unassigned'}"`,
       `"${emp.salary || 0}"`,
-      `"${emp.payrollStatus || 'Pending'}"`
+      `"${emp.payrollStatus || 'Pending'}"`,
+      `"${type === 'yearly' ? reportDate.getFullYear() : reportDate.toLocaleString('default', { month: 'long', year: 'numeric' })}"`
     ]);
+    
     const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `payroll_report_${activeDept.replace(' ', '_')}.csv`);
+    link.setAttribute("download", `${filename}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setShowReportType(false);
   };
 
   if (!hasPayrollAccess) {
@@ -102,13 +121,21 @@ const Payroll = () => {
       <header className="page-header">
         <div className="header-left">
           <h1>Payroll Overview</h1>
-          <p>Summary for the period of {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+          <div className="period-selector">
+            <button className="icon-btn-sm" onClick={() => {
+              const d = new Date(reportDate);
+              d.setMonth(d.getMonth() - 1);
+              setReportDate(d);
+            }}><ChevronLeft size={16} /></button>
+            <p className="period-text">{reportDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+            <button className="icon-btn-sm" onClick={() => {
+              const d = new Date(reportDate);
+              d.setMonth(d.getMonth() + 1);
+              setReportDate(d);
+            }}><ChevronRight size={16} /></button>
+          </div>
         </div>
         <div className="header-actions">
-          <button className="btn-outline" onClick={handleExportCSV}>
-            <Download size={18} />
-            <span>Generate Reports</span>
-          </button>
           <button className="btn-primary flex-row gap-2" onClick={handleRunPayroll}>
             <CheckCircle size={16} fill="currentColor" />
             Run Payroll
@@ -137,6 +164,35 @@ const Payroll = () => {
           <div className="stat-info">
              <p className="stat-label">Pending</p>
              <h3 className="stat-value-small">{pendingCount} Employees</h3>
+          </div>
+        </div>
+      </div>
+
+      {/* NEW: Report Generation Card */}
+      <div className="card report-generation-card mb-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-50 rounded-xl">
+              <FileText className="text-blue-600" size={24} />
+            </div>
+            <div>
+              <h3 className="font-bold">Generate Financial Reports</h3>
+              <p className="text-sm text-slate-500">Download payroll data for audits and accounting.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-outline flex items-center gap-2" onClick={() => handleExportCSV('monthly')}>
+              <Calendar size={18} />
+              <span>Monthly Report</span>
+            </button>
+            <button className="btn-outline flex items-center gap-2" onClick={() => handleExportCSV('yearly')}>
+              <History size={18} />
+              <span>Yearly Report</span>
+            </button>
+            <button className="btn-primary flex items-center gap-2" onClick={() => handleExportCSV('current')}>
+              <Download size={18} />
+              <span>Export All</span>
+            </button>
           </div>
         </div>
       </div>
@@ -266,6 +322,84 @@ const Payroll = () => {
         .header-actions {
           display: flex;
           gap: 1rem;
+        }
+
+        .period-selector {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          margin-top: 0.5rem;
+          background: #f8fafc;
+          padding: 0.25rem 0.75rem;
+          border-radius: 99px;
+          width: fit-content;
+        }
+
+        .period-text {
+          font-weight: 700;
+          color: #1e293b;
+          font-size: 0.875rem;
+          min-width: 120px;
+          text-align: center;
+        }
+
+        .icon-btn-sm {
+          background: transparent;
+          border: none;
+          padding: 4px;
+          border-radius: 50%;
+          cursor: pointer;
+          color: #64748b;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+
+        .icon-btn-sm:hover {
+          background: #e2e8f0;
+          color: #1e293b;
+        }
+
+        .relative { position: relative; }
+        .dropdown-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          z-index: 100;
+          background: white;
+          min-width: 180px;
+          border-radius: 12px;
+          padding: 0.5rem;
+          border: 1px solid #e2e8f0;
+          margin-top: 0.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.75rem 1rem;
+          border-radius: 8px;
+          color: #475569;
+          font-size: 0.875rem;
+          font-weight: 600;
+          text-decoration: none;
+          background: transparent;
+          border: none;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .dropdown-item:hover {
+          background: #f1f5f9;
+          color: #0f172a;
         }
 
         .flex-row { display: flex; align-items: center; }
@@ -477,6 +611,42 @@ const Payroll = () => {
           .table-container { margin: 0 -1.5rem; }
           table { min-width: 600px; }
         }
+
+        .report-generation-card {
+          padding: 1.5rem;
+          background: white;
+          border: 1px solid #e2e8f0;
+          transition: all 0.3s ease;
+          border-radius: 20px;
+        }
+
+        .report-generation-card:hover {
+          border-color: #3b82f6;
+          box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-outline {
+          background: white;
+          border: 1px solid #e2e8f0;
+          padding: 0.625rem 1.25rem;
+          border-radius: 10px;
+          color: #475569;
+          font-weight: 600;
+          font-size: 0.875rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .btn-outline:hover {
+          background: #f8fafc;
+          border-color: #cbd5e1;
+          color: #1e293b;
+        }
+
+        .mb-8 { margin-bottom: 2rem; }
       `}</style>
     </div>
   );

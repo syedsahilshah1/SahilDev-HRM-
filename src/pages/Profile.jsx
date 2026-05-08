@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Edit3, 
   UserMinus, 
@@ -12,13 +12,24 @@ import {
   Wallet,
   Key,
   X,
-  User as UserIcon
+  Trash2,
+  User as UserIcon,
+  Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { db } from '../services/firebase';
+import { collection, onSnapshot, query, orderBy, doc, getDoc } from 'firebase/firestore';
 
 const Profile = () => {
-  const { currentUser, userData, updateUserPassword, updateUserProfile } = useAuth();
+  const { uid } = useParams();
+  const navigate = useNavigate();
+  const { currentUser, userData, updateUserPassword, updateUserProfile, uploadUserDocument, deleteUserDocument, isSuperAdmin } = useAuth();
+  
+  const [profileData, setProfileData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
+
   const [newPassword, setNewPassword] = useState('');
   const [passError, setPassError] = useState('');
   const [passSuccess, setPassSuccess] = useState('');
@@ -27,11 +38,71 @@ const Profile = () => {
   // Edit Modal State
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState({
-    fullName: userData?.fullName || '',
-    dept: userData?.dept || 'IT'
+    fullName: '',
+    dept: 'IT'
   });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
+  const [departments, setDepartments] = useState([]);
+
+  // Documents State
+  const [docList, setDocList] = useState([]);
+  const [openDocMenu, setOpenDocMenu] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadData, setUploadData] = useState({ name: '', type: 'pdf', file: null });
+  const [uploadLoading, setUploadLoading] = useState(false);
+
+  useEffect(() => {
+    const checkProfile = async () => {
+      setLoading(true);
+      const targetUid = uid || currentUser?.uid;
+      
+      if (!targetUid) {
+        setLoading(false);
+        return;
+      }
+
+      setIsOwnProfile(targetUid === currentUser?.uid);
+
+      if (targetUid === currentUser?.uid && userData) {
+        setProfileData(userData);
+        setLoading(false);
+      } else {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', targetUid));
+          if (userSnap.exists()) {
+            setProfileData(userSnap.data());
+          } else {
+            console.error("User not found");
+          }
+        } catch (err) {
+          console.error("Error fetching user:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    checkProfile();
+  }, [uid, currentUser, userData]);
+
+  useEffect(() => {
+    const unsubDept = onSnapshot(doc(db, 'settings', 'departments'), (doc) => {
+      if (doc.exists() && doc.data().list) {
+        setDepartments(doc.data().list);
+      }
+    });
+    return () => unsubDept();
+  }, []);
+
+  useEffect(() => {
+    if (profileData) {
+      setEditData({
+        fullName: profileData.fullName || '',
+        dept: profileData.dept || 'IT'
+      });
+    }
+  }, [profileData]);
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -65,17 +136,81 @@ const Profile = () => {
     }
   };
 
-  const documents = [
-    { name: 'Employment_Contract_2018.pdf', type: 'pdf', date: 'Mar 12, 2018', size: '2.4 MB' },
-    { name: 'Promotion_Letter_2022.docx', type: 'doc', date: 'Jan 15, 2022', size: '1.1 MB' },
-    { name: 'ID_Verification_Copy.jpg', type: 'img', date: 'Mar 10, 2018', size: '4.8 MB' },
-    { name: 'Compliance_Training_Cert.pdf', type: 'pdf', date: 'Oct 22, 2023', size: '0.8 MB' },
-  ];
+  const handleDeleteDoc = async (doc) => {
+    if (window.confirm(`Are you sure you want to delete "${doc.name}"?`)) {
+      try {
+        await deleteUserDocument(doc.id, doc.storagePath);
+        setOpenDocMenu(null);
+      } catch (err) {
+        alert('Failed to delete document: ' + err.message);
+      }
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (window.confirm('Are you sure you want to deactivate this account?')) {
+      try {
+        await updateUserProfile({ status: 'Deactivated' });
+        alert('Account deactivated.');
+      } catch (err) {
+        alert('Failed to deactivate: ' + err.message);
+      }
+    }
+  };
+
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (!uploadData.file) return alert('Please select a file');
+    
+    try {
+      setUploadLoading(true);
+      await uploadUserDocument(uploadData.file, uploadData.name || uploadData.file.name, uploadData.type);
+      setShowUploadModal(false);
+      setUploadData({ name: '', type: 'pdf', file: null });
+    } catch (err) {
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const targetUid = uid || currentUser?.uid;
+    if (!targetUid) return;
+
+    const q = query(
+      collection(db, 'users', targetUid, 'documents'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setDocList(docs);
+    });
+
+    return () => unsubscribe();
+  }, [uid, currentUser]);
+
+  if (loading) return <div className="p-10 text-center">Loading Profile...</div>;
+  if (!profileData) return <div className="p-10 text-center">User not found</div>;
 
   const schedule = [
     { date: 'OCT 24', title: 'Q4 Performance Review', time: '14:30 - 15:30', location: 'Room 402' },
     { date: 'OCT 28', title: 'New Hire Orientation (Host)', time: '09:00 - 12:00', location: 'Virtual' },
   ];
+
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.menu-container')) {
+        setOpenDocMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <div className="profile-page">
@@ -86,8 +221,8 @@ const Profile = () => {
             <button className="btn-outline" onClick={() => setShowEditModal(true)}>
               <Edit3 size={16} /> Edit Profile
             </button>
-            {(userData?.role?.toLowerCase() === 'admin' || userData?.role?.toLowerCase() === 'superadmin') && (
-              <button className="btn-danger"><UserMinus size={16} /> Deactivate</button>
+            {(profileData?.role?.toLowerCase() === 'admin' || profileData?.role?.toLowerCase() === 'superadmin') && (
+              <button className="btn-danger" onClick={handleDeactivate}><UserMinus size={16} /> Deactivate</button>
             )}
           </div>
         </div>
@@ -95,7 +230,7 @@ const Profile = () => {
         <div className="profile-hero">
           <div className="profile-img-large">
             {currentUser?.photoURL ? (
-               <img src={currentUser.photoURL} alt={userData?.fullName} />
+               <img src={currentUser.photoURL} alt={profileData?.fullName} />
             ) : (
                <div className="avatar-placeholder-large">
                   <UserIcon size={48} />
@@ -104,13 +239,13 @@ const Profile = () => {
             <span className="status-dot-active"></span>
           </div>
           <div className="profile-main-info">
-            <h1>{userData?.fullName || 'User Name'}</h1>
-            <p className="title">{userData?.role || 'Staff'} • {userData?.dept || 'Unassigned'}</p>
+            <h1>{profileData?.fullName || 'User Name'}</h1>
+            <p className="title">{profileData?.role || 'Staff'} • {profileData?.dept || 'Unassigned'}</p>
             
             <div className="info-grid">
                <div className="info-item">
                   <span className="label">DEPARTMENT</span>
-                  <p>{userData?.dept || 'General'}</p>
+                  <p>{profileData?.dept || 'General'}</p>
                </div>
                <div className="info-item">
                   <span className="label">STAFF ID</span>
@@ -118,11 +253,11 @@ const Profile = () => {
                </div>
                <div className="info-item">
                   <span className="label">JOIN DATE</span>
-                  <p>{userData?.createdAt ? new Date(userData.createdAt).toLocaleDateString() : 'N/A'}</p>
+                  <p>{profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString() : 'N/A'}</p>
                </div>
                <div className="info-item">
                   <span className="label">STATUS</span>
-                  <p>{userData?.status || 'Active'}</p>
+                  <p>{profileData?.status || 'Active'}</p>
                </div>
             </div>
           </div>
@@ -136,7 +271,7 @@ const Profile = () => {
                 <span className="label">ANNUAL SALARY</span>
                 <Wallet size={20} className="text-muted" />
              </div>
-             <h2 className="salary-value">${Number(userData?.salary || 0).toLocaleString()}</h2>
+             <h2 className="salary-value">${Number(profileData?.salary || 0).toLocaleString()}</h2>
              <p className="next-review">Next Review: Nov 2024</p>
           </div>
 
@@ -198,19 +333,44 @@ const Profile = () => {
              </div>
              <div className="docs-header">
                 <h3>Personnel Documents</h3>
-                <button className="text-btn blue"><Upload size={16} /> Upload New</button>
+                <button className="text-btn blue" onClick={() => setShowUploadModal(true)}>
+                  <Upload size={16} /> Upload New
+                </button>
              </div>
              <div className="docs-list">
-                {documents.map((doc, idx) => (
+                {docList.map((doc, idx) => (
                   <div key={idx} className="doc-item">
                      <div className={`doc-icon ${doc.type}`}>
                         {doc.type === 'pdf' ? <FileText size={20} /> : doc.type === 'img' ? <FileImage size={20} /> : <FileCode size={20} />}
                      </div>
                      <div className="doc-meta">
                         <p className="doc-name">{doc.name}</p>
-                        <p className="doc-details">Added {doc.date} • {doc.size}</p>
+                        <p className="doc-details">Added {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'N/A'} • {doc.size}</p>
                      </div>
-                     <button className="icon-btn-ghost"><MoreVertical size={18} /></button>
+                     <div className="relative menu-container">
+                        <button 
+                          className="icon-btn-ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenDocMenu(openDocMenu === idx ? null : idx);
+                          }}
+                        >
+                          <MoreVertical size={18} />
+                        </button>
+                        
+                        {openDocMenu === idx && (
+                          <div className="dropdown-menu card shadow-lg">
+                            <a href={doc.url} target="_blank" rel="noopener noreferrer" className="dropdown-item" onClick={() => setOpenDocMenu(null)}>
+                              <Download size={16} />
+                              <span>Download</span>
+                            </a>
+                            <button className="dropdown-item text-danger" onClick={() => handleDeleteDoc(doc)}>
+                              <Trash2 size={16} />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        )}
+                     </div>
                   </div>
                 ))}
              </div>
@@ -247,11 +407,9 @@ const Profile = () => {
                   value={editData.dept}
                   onChange={(e) => setEditData({...editData, dept: e.target.value})}
                 >
-                  <option>IT</option>
-                  <option>HR</option>
-                  <option>Sales</option>
-                  <option>Marketing</option>
-                  <option>Operations</option>
+                  {departments.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
                 </select>
               </div>
               <button type="submit" className="submit-btn" disabled={editLoading}>
@@ -262,8 +420,134 @@ const Profile = () => {
         </div>
       )}
 
+      {/* Upload Document Modal */}
+      {showUploadModal && (
+        <div className="modal-overlay">
+          <div className="modal-content card">
+            <div className="modal-header">
+              <h2>Upload Document</h2>
+              <button className="close-btn" onClick={() => setShowUploadModal(false)}><X size={20} /></button>
+            </div>
+
+            <form onSubmit={handleUpload}>
+              <div className="form-group">
+                <label>File Selection</label>
+                <input 
+                  type="file" 
+                  className="modal-input" 
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      setUploadData({
+                        ...uploadData,
+                        file: file,
+                        name: file.name
+                      });
+                    }
+                  }}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Display Name</label>
+                <input 
+                  type="text" 
+                  className="modal-input" 
+                  placeholder="e.g. Contract_Signed.pdf"
+                  value={uploadData.name}
+                  onChange={(e) => setUploadData({...uploadData, name: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>File Category</label>
+                <select 
+                  className="modal-input"
+                  value={uploadData.type}
+                  onChange={(e) => setUploadData({...uploadData, type: e.target.value})}
+                >
+                  <option value="pdf">PDF Document</option>
+                  <option value="img">Image / Photo</option>
+                  <option value="doc">Word Document</option>
+                </select>
+              </div>
+              <button type="submit" className="submit-btn" disabled={uploadLoading}>
+                {uploadLoading ? 'Uploading...' : 'Add to Records'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
         .profile-page { display: flex; flex-direction: column; gap: 2rem; }
+        .relative { position: relative; }
+        
+        .dropdown-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          z-index: 100;
+          background: white;
+          min-width: 160px;
+          border-radius: 12px;
+          padding: 0.5rem;
+          border: 1px solid #e2e8f0;
+          margin-top: 0.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .icon-btn-ghost {
+          background: transparent;
+          border: none;
+          padding: 8px;
+          border-radius: 50%;
+          cursor: pointer;
+          color: #94a3b8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+
+        .icon-btn-ghost:hover {
+          background: #f1f5f9;
+          color: #1e293b;
+        }
+
+        .dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.6rem 0.75rem;
+          border-radius: 8px;
+          color: #475569;
+          font-size: 0.8rem;
+          font-weight: 600;
+          text-decoration: none;
+          background: transparent;
+          border: none;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .dropdown-item:hover {
+          background: #f1f5f9;
+          color: #0f172a;
+        }
+
+        .dropdown-item.text-danger {
+          color: #ef4444;
+        }
+
+        .dropdown-item.text-danger:hover {
+          background: #fef2f2;
+        }
         .password-form { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
         .password-input { flex: 1; padding: 0.5rem; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.875rem; outline: none; }
         .update-btn { background: #0f172a; color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; }
@@ -301,6 +585,27 @@ const Profile = () => {
         .submit-btn { width: 100%; padding: 1rem; background: #000; color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 1.5rem; }
         .alert-error { background: #fef2f2; color: #ef4444; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.875rem; font-weight: 600; }
 
+        .docs-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem; }
+        .doc-item { display: flex; align-items: center; gap: 1rem; padding: 1rem; border-radius: 12px; border: 1px solid #f1f5f9; transition: all 0.2s; }
+        .doc-item:hover { background: #f8fafc; border-color: #e2e8f0; }
+        .doc-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        .doc-icon.pdf { background: #fee2e2; color: #ef4444; }
+        .doc-icon.img { background: #f0fdf4; color: #10b981; }
+        .doc-icon.doc { background: #eff6ff; color: #2563eb; }
+        .doc-meta { flex: 1; }
+        .doc-name { font-size: 0.9375rem; font-weight: 700; color: #1e293b; margin-bottom: 2px; }
+        .doc-details { font-size: 0.75rem; color: #64748b; font-weight: 500; }
+        
+        .tabs { display: flex; gap: 1.5rem; border-bottom: 1px solid #f1f5f9; margin-bottom: 2rem; }
+        .tab { padding-bottom: 1rem; border: none; background: transparent; font-size: 0.9375rem; font-weight: 700; color: #94a3b8; cursor: pointer; position: relative; }
+        .tab.active { color: #0f172a; }
+        .tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: #0f172a; }
+
+        .docs-header { display: flex; justify-content: space-between; align-items: center; }
+        .text-btn { background: transparent; border: none; font-size: 0.875rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
+        .text-btn.blue { color: #2563eb; }
+        .text-btn.blue:hover { color: #1d4ed8; }
+
         @media (max-width: 1024px) {
           .profile-grid { grid-template-columns: 1fr; }
           .profile-hero { flex-direction: column; text-align: center; gap: 1.5rem; }
@@ -311,6 +616,9 @@ const Profile = () => {
           .header-top { flex-direction: column; gap: 1rem; align-items: flex-start; }
           .info-grid { flex-direction: column; gap: 1rem; }
           .modal-content { padding: 1.5rem; }
+          .profile-hero { gap: 1rem; }
+          .profile-img-large { width: 100px; height: 100px; }
+          .profile-main-info h1 { font-size: 1.5rem; }
         }
       `}</style>
     </div>

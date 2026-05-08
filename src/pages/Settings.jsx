@@ -87,7 +87,9 @@ const Settings = () => {
   const [orgChartUrl, setOrgChartUrl] = useState('');
   const [documents, setDocuments] = useState([]);
   const [designations, setDesignations] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [newDesignation, setNewDesignation] = useState('');
+  const [newDept, setNewDept] = useState('');
   const [newDoc, setNewDoc] = useState({ name: '', category: 'General', url: '' });
   const [saving, setSaving] = useState({ policy: false, org: false, doc: false, designation: false, smtp: false });
 
@@ -127,20 +129,25 @@ const Settings = () => {
     const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), (docSnap) => {
       if (docSnap.exists()) {
         const list = docSnap.data().list || [];
-        // Unique cleanup (case-insensitive)
+        // Keep unique by exact match (case sensitive) for the list display
         const uniqueList = Array.from(new Set(list.map(d => d.trim()))).filter(Boolean);
         setDesignations(uniqueList);
-        
-        // If we found duplicates during load, sync back to DB (one-time cleanup)
-        if (uniqueList.length !== list.length) {
-          setDoc(doc(db, 'settings', 'designations'), { list: uniqueList }, { merge: true });
-        }
+      }
+    });
+
+    // Load Departments
+    const unsubDept = onSnapshot(doc(db, 'settings', 'departments'), (docSnap) => {
+      if (docSnap.exists()) {
+        const list = docSnap.data().list || [];
+        const uniqueList = Array.from(new Set(list.map(d => d.trim()))).filter(Boolean);
+        setDepartments(uniqueList);
       }
     });
 
     return () => {
       unsubDocs();
       unsubDesig();
+      unsubDept();
     };
   }, [isSuperAdmin]);
 
@@ -212,14 +219,17 @@ const Settings = () => {
     e.preventDefault();
     const trimmed = newDesignation.trim();
     if (!trimmed) return;
-    if (designations.map(d => d.toLowerCase()).includes(trimmed.toLowerCase())) {
+    if (designations.some(d => d.toLowerCase() === trimmed.toLowerCase())) {
       alert('This designation already exists.');
       return;
     }
 
     setSaving({ ...saving, designation: true });
     try {
-      const updatedList = [...designations, trimmed];
+      // Cleanup: filter out any existing case-insensitive duplicates and empty strings
+      const currentList = designations.map(d => d.trim()).filter(Boolean);
+      const updatedList = [...new Set([...currentList, trimmed])].sort((a, b) => a.localeCompare(b));
+      
       await setDoc(doc(db, 'settings', 'designations'), { list: updatedList });
       setNewDesignation('');
     } catch (err) {
@@ -229,10 +239,44 @@ const Settings = () => {
     setSaving({ ...saving, designation: false });
   };
 
-  const handleDeleteDesignation = async (index) => {
-    const updatedList = designations.filter((_, i) => i !== index);
+  const handleDeleteDesignation = async (desigToDelete) => {
+    if (!window.confirm(`Remove "${desigToDelete}"?`)) return;
+    const updatedList = designations.filter(d => d !== desigToDelete);
     try {
       await setDoc(doc(db, 'settings', 'designations'), { list: updatedList });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddDept = async (e) => {
+    e.preventDefault();
+    const trimmed = newDept.trim();
+    if (!trimmed) return;
+    if (departments.some(d => d.toLowerCase() === trimmed.toLowerCase())) {
+      alert('This department already exists.');
+      return;
+    }
+
+    setSaving({ ...saving, dept: true });
+    try {
+      const currentList = departments.map(d => d.trim()).filter(Boolean);
+      const updatedList = [...new Set([...currentList, trimmed])].sort((a, b) => a.localeCompare(b));
+      
+      await setDoc(doc(db, 'settings', 'departments'), { list: updatedList });
+      setNewDept('');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add department');
+    }
+    setSaving({ ...saving, dept: false });
+  };
+
+  const handleDeleteDept = async (deptToDelete) => {
+    if (!window.confirm(`Remove "${deptToDelete}"?`)) return;
+    const updatedList = departments.filter(d => d !== deptToDelete);
+    try {
+      await setDoc(doc(db, 'settings', 'departments'), { list: updatedList });
     } catch (err) {
       console.error(err);
     }
@@ -446,7 +490,7 @@ const Settings = () => {
                     placeholder="Add job title (e.g. Lead Developer)"
                     className="settings-input w-full"
                   />
-                  {newDesignation && designations.some(d => d.toLowerCase() === newDesignation.toLowerCase()) && (
+                  {newDesignation && designations.some(d => d.toLowerCase() === newDesignation.trim().toLowerCase()) && (
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded">ALREADY EXISTS</span>
                   )}
                 </div>
@@ -460,9 +504,9 @@ const Settings = () => {
               </form>
               <div className="designation-list flex flex-wrap gap-2">
                 {designations.sort((a, b) => a.localeCompare(b)).map((desig, idx) => (
-                  <div key={idx} className="desig-tag group hover:border-blue-200 transition-all">
+                  <div key={idx} className="desig-tag group hover:border-blue-200 transition-all flex items-center">
                     <span>{desig}</span>
-                    <button onClick={() => handleDeleteDesignation(idx)} className="text-slate-400 hover:text-red-500 ml-2 p-1 hover:bg-red-50 rounded-full transition-all opacity-0 group-hover:opacity-100">
+                    <button onClick={() => handleDeleteDesignation(desig)} className="text-slate-400 hover:text-red-500 ml-2 p-1 hover:bg-red-50 rounded-full transition-all opacity-0 group-hover:opacity-100">
                       <X size={12} />
                     </button>
                   </div>
@@ -470,6 +514,57 @@ const Settings = () => {
                 {designations.length === 0 && (
                   <div className="w-full text-center py-4 border-2 border-dashed border-slate-100 rounded-xl">
                     <p className="text-xs text-slate-400 italic">No custom designations added yet.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Department Management */}
+          <div className="card designation-card mt-8">
+            <div className="card-header-row p-6 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Network size={20} className="text-blue" />
+                <div>
+                  <h3 className="text-lg font-bold">Company Departments</h3>
+                  <p className="text-xs text-slate-500">Manage business units and departments.</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleAddDept} className="flex gap-2 mb-4">
+                <div className="relative flex-1">
+                  <input 
+                    type="text" 
+                    value={newDept}
+                    onChange={(e) => setNewDept(e.target.value)}
+                    placeholder="Add department (e.g. Finance)"
+                    className="settings-input w-full"
+                  />
+                  {newDept && departments.some(d => d.toLowerCase() === newDept.trim().toLowerCase()) && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded">ALREADY EXISTS</span>
+                  )}
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={saving.dept || !newDept.trim() || departments.some(d => d.toLowerCase() === newDept.trim().toLowerCase())} 
+                  className="btn-primary-blue px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving.dept ? '...' : 'Add'}
+                </button>
+              </form>
+              <div className="designation-list flex flex-wrap gap-2">
+                {departments.sort((a, b) => a.localeCompare(b)).map((dept, idx) => (
+                  <div key={idx} className="desig-tag group hover:border-blue-200 transition-all flex items-center">
+                    <span>{dept}</span>
+                    <button onClick={() => handleDeleteDept(dept)} className="text-slate-400 hover:text-red-500 ml-2 p-1 hover:bg-red-50 rounded-full transition-all opacity-0 group-hover:opacity-100">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                {departments.length === 0 && (
+                  <div className="w-full text-center py-4 border-2 border-dashed border-slate-100 rounded-xl">
+                    <p className="text-xs text-slate-400 italic">No custom departments added yet.</p>
                   </div>
                 )}
               </div>

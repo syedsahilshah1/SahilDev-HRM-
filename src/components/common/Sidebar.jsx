@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Settings as SettingsIcon, LayoutDashboard, Users, ClipboardCheck, CalendarDays, Wallet, ShieldCheck, Network, FileText, HelpCircle, LogOut, User } from 'lucide-react';
+import { Settings as SettingsIcon, LayoutDashboard, Users, ClipboardCheck, CalendarDays, Wallet, ShieldCheck, Network, FileText, HelpCircle, LogOut, User, BarChart3 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -38,6 +38,11 @@ const Sidebar = ({ isOpen, onClose }) => {
     mainItems.push({ name: 'Payroll', icon: <Wallet size={20} />, path: '/payroll' });
   }
 
+  // Add Reports link
+  if (isSuperAdmin || userRole === 'admin' || userRole === 'hr') {
+    mainItems.push({ name: 'Reports', icon: <BarChart3 size={20} />, path: '/reports' });
+  }
+
   const subItems = [
     { name: 'Company Policy', icon: <ShieldCheck size={20} />, path: '/policy' },
     { name: 'Organization Chart', icon: <Network size={20} />, path: '/org-chart' },
@@ -54,19 +59,21 @@ const Sidebar = ({ isOpen, onClose }) => {
   return (
     <aside className={`sidebar ${isOpen ? 'mobile-open' : ''}`}>
       <div className="user-profile-section">
-        <div className="user-avatar-container">
-          <div className="avatar-box">
-             {currentUser?.photoURL ? (
-                <img src={currentUser.photoURL} alt="User" style={{ width: '100%', height: '100%', borderRadius: '10px' }} />
-             ) : (
-                <User size={24} className="text-primary" />
-             )}
+        <NavLink to="/profile" className="user-avatar-container-link" onClick={onClose}>
+          <div className="user-avatar-container">
+            <div className="avatar-box">
+               {currentUser?.photoURL ? (
+                  <img src={currentUser.photoURL} alt="User" style={{ width: '100%', height: '100%', borderRadius: '10px' }} />
+               ) : (
+                  <User size={24} className="text-primary" />
+               )}
+            </div>
+            <div className="user-details">
+              <h3 className="user-name">{userData?.fullName || currentUser?.displayName || 'Sahil Dev'}</h3>
+              <p className="user-dept">{userData?.role?.toUpperCase() || 'STAFF'}</p>
+            </div>
           </div>
-          <div className="user-details">
-            <h3 className="user-name">{userData?.fullName || currentUser?.displayName || 'Sahil Dev'}</h3>
-            <p className="user-dept">{userData?.role?.toUpperCase() || 'STAFF'}</p>
-          </div>
-        </div>
+        </NavLink>
       </div>
 
       <nav className="nav-menu">
@@ -136,6 +143,16 @@ const Sidebar = ({ isOpen, onClose }) => {
 
         .user-profile-section {
           padding: 2rem 1.5rem;
+        }
+        
+        .user-avatar-container-link {
+          text-decoration: none;
+          display: block;
+          transition: transform 0.2s ease;
+        }
+        
+        .user-avatar-container-link:hover {
+          transform: translateY(-2px);
         }
 
         .user-avatar-container {

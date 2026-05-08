@@ -10,6 +10,7 @@ import Tasks from './pages/Tasks';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import Reports from './pages/Reports';
 import CompanyPolicy from './pages/CompanyPolicy';
 import OrgChart from './pages/OrgChart';
 import Documents from './pages/Documents';
@@ -64,7 +65,8 @@ function App() {
                     <Route path="/payroll" element={<Payroll />} />
                     <Route path="/tasks" element={<Tasks />} />
                     <Route path="/settings" element={<Settings />} />
-                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/profile/:uid?" element={<Profile />} />
+                    <Route path="/reports" element={<Reports />} />
                     <Route path="/policy" element={<CompanyPolicy />} />
                     <Route path="/org-chart" element={<OrgChart />} />
                     <Route path="/documents" element={<Documents />} />
