@@ -335,80 +335,97 @@ const Employees = () => {
             
             {error && <div className="alert alert-error mb-4">{error}</div>}
             
-            <form onSubmit={handleAddEmployee}>
-              <div className="form-group">
-                <label>Full Name</label>
-                <input 
-                  type="text" 
-                  className="modal-input" 
-                  placeholder="Enter full name"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Work Email</label>
-                <input 
-                  type="email" 
-                  className="modal-input" 
-                  placeholder="name@company.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  required
-                />
-                <p className="hint">Initial password will be the same as the email.</p>
-              </div>
-              <div className="form-row">
-                <div className="form-group flex-1">
-                  <label>Access Level (Role)</label>
-                  <select 
-                    className="modal-input"
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                  >
-                    <option value="staff">Staff / Employee</option>
-                    <option value="admin">Administrator</option>
-                    <option value="hr">HR Manager</option>
-                  </select>
-                </div>
-                <div className="form-group flex-1">
-                  <label>Job Title (Designation)</label>
-                  <select 
-                    className="modal-input"
-                    value={formData.designation}
-                    onChange={(e) => setFormData({...formData, designation: e.target.value})}
-                  >
-                    <option value="">Select Title</option>
-                    {designations.map(desig => (
-                      <option key={desig} value={desig}>{desig}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-               <div className="form-row">
-                <div className="form-group flex-1">
-                  <label>Department</label>
-                  <select 
-                    className="modal-input"
-                    value={formData.dept}
-                    onChange={(e) => setFormData({...formData, dept: e.target.value})}
-                  >
-                    {departments.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group flex-1">
-                  <label>Base Salary (Monthly)</label>
+            <form onSubmit={handleAddEmployee} className="professional-form">
+              <div className="form-section">
+                <h3 className="section-title">Employee Details</h3>
+                <div className="form-group">
+                  <label>Full Name</label>
                   <input 
-                    type="number" 
+                    type="text" 
                     className="modal-input" 
-                    placeholder="e.g. 5000"
-                    value={formData.salary}
-                    onChange={(e) => setFormData({...formData, salary: e.target.value})}
+                    placeholder="Enter full name"
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                    required
                   />
+                </div>
+                <div className="form-group">
+                  <label>Work Email</label>
+                  <input 
+                    type="email" 
+                    className="modal-input" 
+                    placeholder="name@company.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    required
+                  />
+                  <p className="helper-text">Initial password will be the same as the email.</p>
+                </div>
+              </div>
+
+              <div className="form-section">
+                <h3 className="section-title">Role & Compensation</h3>
+                <div className="form-row">
+                  <div className="form-group flex-1">
+                    <label>Access Level (Role)</label>
+                    <select 
+                      className="modal-input"
+                      value={formData.role}
+                      onChange={(e) => setFormData({...formData, role: e.target.value})}
+                      required
+                    >
+                      <option value="" disabled>Select Role</option>
+                      <option value="staff">Staff / Employee</option>
+                      <option value="admin">Administrator</option>
+                      <option value="hr">HR Manager</option>
+                    </select>
+                    <p className="helper-text">Defines system permissions (e.g., HR can manage employees)</p>
+                  </div>
+                  <div className="form-group flex-1">
+                    <label>Job Title</label>
+                    <select 
+                      className="modal-input"
+                      value={formData.designation}
+                      onChange={(e) => setFormData({...formData, designation: e.target.value})}
+                      required
+                    >
+                      <option value="" disabled>Select Job Title</option>
+                      {designations.map(desig => (
+                        <option key={desig} value={desig}>{desig}</option>
+                      ))}
+                    </select>
+                    <p className="helper-text">e.g., Software Engineer</p>
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group flex-1">
+                    <label>Department</label>
+                    <select 
+                      className="modal-input"
+                      value={formData.dept}
+                      onChange={(e) => setFormData({...formData, dept: e.target.value})}
+                      required
+                    >
+                      <option value="" disabled>Select Department</option>
+                      {departments.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    <p className="helper-text">Choose the team the employee belongs to</p>
+                  </div>
+                  <div className="form-group flex-1">
+                    <label>Base Salary (Monthly)</label>
+                    <input 
+                      type="number" 
+                      className="modal-input" 
+                      placeholder="e.g. 50000"
+                      value={formData.salary}
+                      onChange={(e) => setFormData({...formData, salary: e.target.value})}
+                      required
+                    />
+                    <p className="helper-text">Enter amount in PKR</p>
+                  </div>
                 </div>
               </div>
               
@@ -433,67 +450,86 @@ const Employees = () => {
             
             {error && <div className="alert alert-error mb-4">{error}</div>}
             
-            <form onSubmit={handleEditMember}>
-              <div className="form-group">
-                <label>Full Name</label>
-                <input 
-                  type="text" 
-                  className="modal-input" 
-                  placeholder="Enter full name"
-                  value={editingMember.fullName}
-                  onChange={(e) => setEditingMember({...editingMember, fullName: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-group flex-1">
-                  <label>Access Level (Role)</label>
-                  <select 
-                    className="modal-input"
-                    value={editingMember.role}
-                    onChange={(e) => setEditingMember({...editingMember, role: e.target.value})}
-                  >
-                    <option value="staff">Staff / Employee</option>
-                    <option value="admin">Administrator</option>
-                    <option value="hr">HR Manager</option>
-                  </select>
-                </div>
-                <div className="form-group flex-1">
-                  <label>Job Title (Designation)</label>
-                  <select 
-                    className="modal-input"
-                    value={editingMember.designation}
-                    onChange={(e) => setEditingMember({...editingMember, designation: e.target.value})}
-                  >
-                    {designations.map(desig => (
-                      <option key={desig} value={desig}>{desig}</option>
-                    ))}
-                  </select>
+            <form onSubmit={handleEditMember} className="professional-form">
+              <div className="form-section">
+                <h3 className="section-title">Employee Details</h3>
+                <div className="form-group">
+                  <label>Full Name</label>
+                  <input 
+                    type="text" 
+                    className="modal-input" 
+                    placeholder="Enter full name"
+                    value={editingMember.fullName}
+                    onChange={(e) => setEditingMember({...editingMember, fullName: e.target.value})}
+                    required
+                  />
                 </div>
               </div>
-              <div className="form-group">
-                <label>Department</label>
-                <select 
-                  className="modal-input"
-                  value={editingMember.dept || ''}
-                  onChange={(e) => setEditingMember({...editingMember, dept: e.target.value})}
-                >
-                  <option value="" disabled>Select Department</option>
-                  {departments.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="form-group">
-                <label>Base Salary (Monthly)</label>
-                <input 
-                  type="number" 
-                  className="modal-input" 
-                  placeholder="e.g. 5000"
-                  value={editingMember.salary}
-                  onChange={(e) => setEditingMember({...editingMember, salary: e.target.value})}
-                />
+
+              <div className="form-section">
+                <h3 className="section-title">Role & Compensation</h3>
+                <div className="form-row">
+                  <div className="form-group flex-1">
+                    <label>Access Level (Role)</label>
+                    <select 
+                      className="modal-input"
+                      value={editingMember.role}
+                      onChange={(e) => setEditingMember({...editingMember, role: e.target.value})}
+                      required
+                    >
+                      <option value="" disabled>Select Role</option>
+                      <option value="staff">Staff / Employee</option>
+                      <option value="admin">Administrator</option>
+                      <option value="hr">HR Manager</option>
+                    </select>
+                    <p className="helper-text">Defines system permissions (e.g., HR can manage employees)</p>
+                  </div>
+                  <div className="form-group flex-1">
+                    <label>Job Title</label>
+                    <select 
+                      className="modal-input"
+                      value={editingMember.designation}
+                      onChange={(e) => setEditingMember({...editingMember, designation: e.target.value})}
+                      required
+                    >
+                      <option value="" disabled>Select Job Title</option>
+                      {designations.map(desig => (
+                        <option key={desig} value={desig}>{desig}</option>
+                      ))}
+                    </select>
+                    <p className="helper-text">e.g., Software Engineer</p>
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group flex-1">
+                    <label>Department</label>
+                    <select 
+                      className="modal-input"
+                      value={editingMember.dept || ''}
+                      onChange={(e) => setEditingMember({...editingMember, dept: e.target.value})}
+                      required
+                    >
+                      <option value="" disabled>Select Department</option>
+                      {departments.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    <p className="helper-text">Choose the team the employee belongs to</p>
+                  </div>
+                  <div className="form-group flex-1">
+                    <label>Base Salary (Monthly)</label>
+                    <input 
+                      type="number" 
+                      className="modal-input" 
+                      placeholder="e.g. 50000"
+                      value={editingMember.salary}
+                      onChange={(e) => setEditingMember({...editingMember, salary: e.target.value})}
+                      required
+                    />
+                    <p className="helper-text">Enter amount in PKR</p>
+                  </div>
+                </div>
               </div>
               
               <button type="submit" className="submit-btn" disabled={submitting}>
@@ -1011,65 +1047,173 @@ const Employees = () => {
           gap: 0.5rem;
         }
 
+        .professional-form {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+
+        .form-section {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          padding: 1.25rem;
+          background: #f8fafc;
+          border-radius: 16px;
+          border: 1px solid #e2e8f0;
+        }
+
+        .section-title {
+          font-size: 0.75rem;
+          font-weight: 800;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-bottom: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .section-title::after {
+          content: '';
+          flex: 1;
+          height: 1px;
+          background: #e2e8f0;
+        }
+
+        .helper-text {
+          font-size: 0.7rem;
+          color: #94a3b8;
+          margin-top: 6px;
+          font-weight: 500;
+        }
+
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.5);
-          backdrop-filter: blur(4px);
+          background: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(8px);
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 100;
+          z-index: 1000;
           padding: 1.5rem;
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
 
         .modal-content {
           background: white;
           width: 100%;
-          max-width: 500px;
-          padding: 2rem;
-          border-radius: 24px;
+          max-width: 550px;
+          max-height: 90vh;
+          overflow-y: auto;
+          padding: 2.5rem;
+          border-radius: 32px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          position: relative;
+          scrollbar-width: none;
         }
+
+        .modal-content::-webkit-scrollbar { display: none; }
 
         .modal-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 2rem;
+          margin-bottom: 2.5rem;
         }
 
-        .modal-header h2 { font-size: 1.5rem; font-weight: 800; }
+        .modal-header h2 { 
+          font-size: 1.75rem; 
+          font-weight: 900; 
+          color: #0f172a;
+          letter-spacing: -0.02em;
+        }
 
-        .close-btn { background: transparent; border: none; color: #94a3b8; cursor: pointer; }
+        .close-btn { 
+          background: #f1f5f9; 
+          border: none; 
+          color: #64748b; 
+          cursor: pointer; 
+          padding: 8px;
+          border-radius: 12px;
+          transition: all 0.2s;
+        }
 
-        .form-group { margin-bottom: 1.5rem; }
-        .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 0.5rem; text-transform: uppercase; }
+        .close-btn:hover {
+          background: #e2e8f0;
+          color: #0f172a;
+          transform: rotate(90deg);
+        }
+
+        .form-group { margin-bottom: 0; }
+        .form-group label { 
+          display: block; 
+          font-size: 0.75rem; 
+          font-weight: 700; 
+          color: #475569; 
+          margin-bottom: 0.5rem; 
+          text-transform: uppercase; 
+          letter-spacing: 0.025em;
+        }
         
         .modal-input {
           width: 100%;
-          padding: 0.875rem 1rem;
-          border-radius: 12px;
-          border: 1px solid #e2e8f0;
-          font-size: 1rem;
+          padding: 0.875rem 1.25rem;
+          border-radius: 14px;
+          border: 1.5px solid #e2e8f0;
+          font-size: 0.95rem;
+          font-weight: 500;
           outline: none;
-          background: #f8fafc;
+          background: white;
+          transition: all 0.2s;
+          color: #0f172a;
         }
 
-        .form-row { display: flex; gap: 1rem; }
-        .flex-1 { flex: 1; }
+        .modal-input:focus {
+          border-color: #000;
+          background: white;
+          box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05);
+        }
 
-        .hint { font-size: 0.75rem; color: #64748b; margin-top: 0.5rem; }
+        .modal-input::placeholder {
+          color: #94a3b8;
+        }
+
+        .form-row { display: flex; gap: 1.25rem; }
+        .flex-1 { flex: 1; }
 
         .submit-btn {
           width: 100%;
-          padding: 1rem;
+          padding: 1.125rem;
           background: #000;
           color: white;
           border: none;
-          border-radius: 12px;
-          font-weight: 700;
+          border-radius: 16px;
+          font-weight: 800;
+          font-size: 1rem;
           cursor: pointer;
           margin-top: 1rem;
+          transition: all 0.3s;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .submit-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+          background: #1e293b;
+        }
+
+        .submit-btn:disabled {
+          background: #94a3b8;
+          cursor: not-allowed;
+          transform: none;
         }
 
         .alert { padding: 1rem; border-radius: 12px; font-size: 0.875rem; font-weight: 600; }
