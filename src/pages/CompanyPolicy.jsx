@@ -57,7 +57,7 @@ const CompanyPolicy = () => {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         .policy-page {
           max-width: 900px;
           margin: 0 auto;

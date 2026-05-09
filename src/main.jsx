@@ -4,10 +4,14 @@ import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext';
 import './index.css';
 
+import ErrorBoundary from './components/ErrorBoundary.jsx';
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

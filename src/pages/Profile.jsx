@@ -194,15 +194,7 @@ const Profile = () => {
     return () => unsubscribe();
   }, [uid, currentUser]);
 
-  if (loading) return <div className="p-10 text-center">Loading Profile...</div>;
-  if (!profileData) return <div className="p-10 text-center">User not found</div>;
-
-  const schedule = [
-    { date: 'OCT 24', title: 'Q4 Performance Review', time: '14:30 - 15:30', location: 'Room 402' },
-    { date: 'OCT 28', title: 'New Hire Orientation (Host)', time: '09:00 - 12:00', location: 'Virtual' },
-  ];
-
-  React.useEffect(() => {
+  useEffect(() => {
     const handleClickOutside = (e) => {
       if (!e.target.closest('.menu-container')) {
         setOpenDocMenu(null);
@@ -211,6 +203,14 @@ const Profile = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  if (loading) return <div className="p-10 text-center">Loading Profile...</div>;
+  if (!profileData) return <div className="p-10 text-center">User not found</div>;
+
+  const schedule = [
+    { date: 'OCT 24', title: 'Q4 Performance Review', time: '14:30 - 15:30', location: 'Room 402' },
+    { date: 'OCT 28', title: 'New Hire Orientation (Host)', time: '09:00 - 12:00', location: 'Virtual' },
+  ];
 
   return (
     <div className="profile-page">
@@ -479,7 +479,7 @@ const Profile = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .profile-page { display: flex; flex-direction: column; gap: 2rem; }
         .relative { position: relative; }
         

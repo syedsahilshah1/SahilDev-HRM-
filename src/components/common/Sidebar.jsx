@@ -116,7 +116,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         <p className="version">v2.4.0</p>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .sidebar {
           width: 250px;
           height: 100vh;

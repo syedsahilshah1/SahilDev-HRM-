@@ -85,7 +85,7 @@ const OrgChart = () => {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         .org-chart-page {
           height: calc(100vh - 150px);
           display: flex;

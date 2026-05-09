@@ -32,11 +32,17 @@ const Payroll = () => {
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('fullName', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const emps = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-      setEmployees(emps);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const emps = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+        setEmployees(emps);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error fetching payroll data:", err);
+        setLoading(false);
+      }
+    );
     return () => unsubscribe();
   }, []);
 
@@ -312,7 +318,7 @@ const Payroll = () => {
          </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .payroll-page {
           display: flex;
           flex-direction: column;

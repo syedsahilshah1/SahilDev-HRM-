@@ -41,18 +41,29 @@ const Tasks = () => {
   useEffect(() => {
     // Fetch Tasks
     const qTasks = query(collection(db, 'tasks'), orderBy('createdAt', 'desc'));
-    const unsubscribeTasks = onSnapshot(qTasks, (snapshot) => {
-      const taskList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTasks(taskList);
-      setLoading(false);
-    });
+    const unsubscribeTasks = onSnapshot(qTasks, 
+      (snapshot) => {
+        const taskList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setTasks(taskList);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error fetching tasks:", err);
+        setLoading(false);
+      }
+    );
 
     // Fetch Employees for dropdown
     const qEmps = query(collection(db, 'users'), orderBy('fullName', 'asc'));
-    const unsubscribeEmps = onSnapshot(qEmps, (snapshot) => {
-      const empList = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-      setEmployees(empList);
-    });
+    const unsubscribeEmps = onSnapshot(qEmps, 
+      (snapshot) => {
+        const empList = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+        setEmployees(empList);
+      },
+      (err) => {
+        console.error("Error fetching employees for tasks:", err);
+      }
+    );
 
     return () => {
       unsubscribeTasks();
@@ -336,7 +347,7 @@ const Tasks = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .tasks-page {
           display: flex;
           flex-direction: column;

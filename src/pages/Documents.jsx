@@ -76,38 +76,51 @@ const Documents = () => {
     // 1. Fetch Company-wide Repository Documents
     const qDocs = query(collection(db, 'documents'), orderBy('createdAt', 'desc'));
     
-    const unsubDocs = onSnapshot(qDocs, (snapshot) => {
-      const companyDocs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        isPersonal: false
-      }));
+    const unsubDocs = onSnapshot(qDocs, 
+      (snapshot) => {
+        const companyDocs = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          isPersonal: false
+        }));
 
-      // 2. Fetch Personal Documents if the user is an employee
-      if (!isSuperAdmin && userData?.uid) {
-        const qPersonal = query(
-          collection(db, 'employee_documents'), 
-          where('employeeId', '==', userData.uid),
-          orderBy('createdAt', 'desc')
-        );
+        // 2. Fetch Personal Documents if the user is an employee
+        if (!isSuperAdmin && userData?.uid) {
+          const qPersonal = query(
+            collection(db, 'employee_documents'), 
+            where('employeeId', '==', userData.uid),
+            orderBy('createdAt', 'desc')
+          );
 
-        onSnapshot(qPersonal, (personalSnapshot) => {
-          const personalDocs = personalSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            name: doc.data().templateName || 'Personal Document',
-            isPersonal: true
-          }));
-          
-          // Combine both company docs and personal docs
-          setDocuments([...companyDocs, ...personalDocs]);
+          onSnapshot(qPersonal, 
+            (personalSnapshot) => {
+              const personalDocs = personalSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                name: doc.data().templateName || 'Personal Document',
+                isPersonal: true
+              }));
+              
+              // Combine both company docs and personal docs
+              setDocuments([...companyDocs, ...personalDocs]);
+              setLoading(false);
+            },
+            (err) => {
+              console.error("Error fetching personal documents:", err);
+              setDocuments(companyDocs);
+              setLoading(false);
+            }
+          );
+        } else {
+          setDocuments(companyDocs);
           setLoading(false);
-        });
-      } else {
-        setDocuments(companyDocs);
+        }
+      },
+      (err) => {
+        console.error("Error fetching repository documents:", err);
         setLoading(false);
       }
-    });
+    );
 
     return () => unsubDocs();
   }, [isSuperAdmin, userData?.uid]);
@@ -535,7 +548,7 @@ const Documents = () => {
       )}
 
 
-      <style jsx>{`
+      <style>{`
         .tabs {
           display: flex;
           gap: 1rem;

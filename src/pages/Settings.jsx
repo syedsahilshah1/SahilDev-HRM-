@@ -33,7 +33,7 @@ const Toggle = ({ enabled, setEnabled }) => (
     className={`toggle-switch ${enabled ? 'enabled' : ''}`}
   >
     <div className="toggle-dot"></div>
-    <style jsx>{`
+    <style>{`
       .toggle-switch {
         width: 44px;
         height: 24px;
@@ -752,7 +752,7 @@ const Settings = () => {
       </div>
 
 
-      <style jsx>{`
+      <style>{`
         .settings-page {
           display: flex;
           flex-direction: column;

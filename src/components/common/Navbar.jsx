@@ -62,7 +62,7 @@ const Navbar = ({ onMenuClick }) => {
         </NavLink>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .navbar {
           height: 64px;
           display: flex;

@@ -35,35 +35,51 @@ const Employees = () => {
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('fullName', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const emps = snapshot.docs.map(doc => ({ 
-        uid: doc.id, 
-        ...doc.data(),
-        role: doc.data().role || 'staff',
-        designation: doc.data().designation || 'Developer'
-      }));
-      setEmployees(emps);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const emps = snapshot.docs.map(doc => ({ 
+          uid: doc.id, 
+          ...doc.data(),
+          role: doc.data().role || 'staff',
+          designation: doc.data().designation || 'Developer'
+        }));
+        setEmployees(emps);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error fetching employees:", err);
+        setLoading(false);
+      }
+    );
 
     // Load Designations - Ensure we use the correct path and structure
-    const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), (docSnap) => {
-      if (docSnap.exists()) {
-        setDesignations(docSnap.data().list || []);
-      } else {
-        // Fallback if document doesn't exist
-        setDesignations(['Software Engineer', 'Product Manager', 'Designer', 'HR Manager', 'Sales Executive']);
+    const unsubDesig = onSnapshot(doc(db, 'settings', 'designations'), 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setDesignations(docSnap.data().list || []);
+        } else {
+          // Fallback if document doesn't exist
+          setDesignations(['Software Engineer', 'Product Manager', 'Designer', 'HR Manager', 'Sales Executive']);
+        }
+      },
+      (err) => {
+        console.error("Error fetching designations:", err);
       }
-    });
+    );
 
     // Load Departments
-    const unsubDept = onSnapshot(doc(db, 'settings', 'departments'), (docSnap) => {
-      if (docSnap.exists()) {
-        setDepartments(docSnap.data().list || []);
-      } else {
-        setDepartments(['IT', 'HR', 'Marketing', 'Sales', 'Operations']);
+    const unsubDept = onSnapshot(doc(db, 'settings', 'departments'), 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setDepartments(docSnap.data().list || []);
+        } else {
+          setDepartments(['IT', 'HR', 'Marketing', 'Sales', 'Operations']);
+        }
+      },
+      (err) => {
+        console.error("Error fetching departments:", err);
       }
-    });
+    );
 
     const handleClickOutside = (e) => {
       if (!e.target.closest('.menu-container')) {
@@ -540,7 +556,7 @@ const Employees = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .employees-page {
           max-width: 800px;
           margin: 0 auto;

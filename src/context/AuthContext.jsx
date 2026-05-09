@@ -165,37 +165,42 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (user.email === SUPER_ADMIN_EMAIL && data.role !== 'superadmin') {
-             await updateDoc(docRef, { role: 'superadmin' });
-             setUserData({ ...data, role: 'superadmin' });
+      try {
+        setCurrentUser(user);
+        if (user) {
+          const docRef = doc(db, 'users', user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (user.email === SUPER_ADMIN_EMAIL && data.role !== 'superadmin') {
+              await updateDoc(docRef, { role: 'superadmin' });
+              setUserData({ ...data, role: 'superadmin' });
+            } else {
+              setUserData(data);
+            }
           } else {
-             setUserData(data);
+            // If user exists in Auth but not in Firestore (e.g. first Google Login)
+            const newUserDoc = {
+              uid: user.uid,
+              email: user.email,
+              fullName: user.displayName || 'New User',
+              role: user.email === SUPER_ADMIN_EMAIL ? 'superadmin' : 'staff',
+              designation: 'Developer',
+              createdAt: new Date().toISOString(),
+              dept: 'Unassigned',
+              status: 'Active'
+            };
+            await setDoc(docRef, newUserDoc);
+            setUserData(newUserDoc);
           }
         } else {
-           // If user exists in Auth but not in Firestore (e.g. first Google Login)
-           const newUserDoc = {
-             uid: user.uid,
-             email: user.email,
-             fullName: user.displayName || 'New User',
-             role: user.email === SUPER_ADMIN_EMAIL ? 'superadmin' : 'staff',
-             designation: 'Developer',
-             createdAt: new Date().toISOString(),
-             dept: 'Unassigned',
-             status: 'Active'
-           };
-           await setDoc(docRef, newUserDoc);
-           setUserData(newUserDoc);
+          setUserData(null);
         }
-      } else {
-        setUserData(null);
+      } catch (err) {
+        console.error("Error in onAuthStateChanged:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return unsubscribe;
@@ -270,7 +275,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

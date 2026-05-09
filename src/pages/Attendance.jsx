@@ -37,12 +37,13 @@ const Attendance = () => {
 
   // Fetch Applications
   useEffect(() => {
-    // Superadmin sees all, Employee sees only theirs
+    if (!currentUser?.uid) return;
+
     const userRole = userData?.role?.toLowerCase();
     const isAdmin = isSuperAdmin || userRole === 'admin';
     const q = isAdmin
       ? query(collection(db, 'leave_applications'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'leave_applications'), where('userId', '==', currentUser?.uid), orderBy('createdAt', 'desc'));
+      : query(collection(db, 'leave_applications'), where('userId', '==', currentUser.uid), orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const apps = snapshot.docs.map(doc => ({
@@ -52,7 +53,7 @@ const Attendance = () => {
       setApplications(apps);
       setLoading(false);
     }, (err) => {
-      console.error("Firestore error:", err);
+      console.error("Leave applications error:", err);
       setError("Failed to load applications. " + err.message);
       setLoading(false);
     });
@@ -451,7 +452,7 @@ const Attendance = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .attendance-page {
           display: flex;
           flex-direction: column;

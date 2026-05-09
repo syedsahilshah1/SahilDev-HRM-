@@ -21,7 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, Timestamp, orderBy } from 'firebase/firestore';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -35,6 +35,8 @@ const Dashboard = () => {
 
   const [todayRecord, setTodayRecord] = useState(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
 
   useEffect(() => {
     if (!userData?.uid) return;
@@ -94,7 +96,6 @@ const Dashboard = () => {
     }
   };
 
-  const [pendingApprovals, setPendingApprovals] = useState([]);
 
   useEffect(() => {
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
@@ -132,7 +133,7 @@ const Dashboard = () => {
     const unsubscribeAttendance = onSnapshot(attendQuery, (snapshot) => {
       const dailyCounts = [0, 0, 0, 0, 0]; // M T W T F
       snapshot.docs.forEach(doc => {
-        const date = doc.data().createdAt?.toDate();
+        const date = doc.data().createdAt && typeof doc.data().createdAt.toDate === 'function' ? doc.data().createdAt.toDate() : null;
         if (date) {
           const day = date.getDay(); // 0 is Sun, 1 is Mon...
           if (day >= 1 && day <= 5) {
@@ -141,6 +142,8 @@ const Dashboard = () => {
         }
       });
       setStats(prev => ({ ...prev, weeklyPresence: dailyCounts }));
+    }, (err) => {
+      console.error("Dashboard attendance error:", err);
     });
 
     // Recent Activity Logic
@@ -148,7 +151,7 @@ const Dashboard = () => {
     const unsubscribeActivity = onSnapshot(activityQuery, (snapshot) => {
       const activities = snapshot.docs.slice(0, 5).map(doc => {
         const data = doc.data();
-        const time = data.createdAt?.toDate();
+        const time = data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : null;
         return {
           title: `${data.userName} checked in`,
           time: time ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
@@ -158,6 +161,9 @@ const Dashboard = () => {
         };
       });
       setRecentActivity(activities);
+    }, (err) => {
+      console.error("Dashboard activity error:", err);
+      setRecentActivity([]);
     });
 
     return () => {
@@ -169,7 +175,6 @@ const Dashboard = () => {
     };
   }, []);
 
-  const [recentActivity, setRecentActivity] = useState([]);
   return (
     <div className="dashboard">
       <header className="dashboard-header">
@@ -290,7 +295,7 @@ const Dashboard = () => {
               <div className="flex flex-col gap-3">
                 <div className="check-in-info p-3 bg-blue-50 rounded-lg">
                   <p className="text-xs font-bold text-blue-600 uppercase">Checked In At</p>
-                  <p className="text-lg font-bold">{new Date(todayRecord.checkIn.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-lg font-bold">{todayRecord.checkIn && typeof todayRecord.checkIn.toDate === 'function' ? todayRecord.checkIn.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</p>
                 </div>
                 <button 
                   className="btn-outline w-full flex items-center justify-center gap-2"
@@ -352,7 +357,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .dashboard {
           display: flex;
           flex-direction: column;

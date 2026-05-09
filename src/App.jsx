@@ -85,7 +85,7 @@ function App() {
                 <div className="mobile-backdrop" onClick={closeSidebar} />
               )}
 
-              <style jsx>{`
+              <style>{`
                 .app-layout {
                   display: flex;
                   min-height: 100vh;

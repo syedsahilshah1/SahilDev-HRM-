@@ -337,7 +337,7 @@ const Reports = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .reports-page {
           display: flex;
           flex-direction: column;
