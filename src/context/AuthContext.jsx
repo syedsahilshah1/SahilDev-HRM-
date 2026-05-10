@@ -29,7 +29,8 @@ export const AuthProvider = ({ children }) => {
     uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
   }); 
 
-  const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPERADMIN_EMAIL || 'sahilkhan536ah@gmail.com';
+  // SuperAdmin email from .env
+  const SUPER_ADMIN_EMAIL = import.meta.env.VITE_USER_EMAIL;
 
   // Initialize Secondary Auth only when needed to avoid config errors on load
   const getSecondaryAuth = () => {
@@ -186,8 +187,10 @@ export const AuthProvider = ({ children }) => {
             if (user.email === SUPER_ADMIN_EMAIL && data.role !== 'superadmin') {
               await updateDoc(docRef, { role: 'superadmin' });
               setUserData({ ...data, role: 'superadmin' });
+              console.log("[AuthContext] SuperAdmin Logged In:", user.email);
             } else {
               setUserData(data);
+              console.log("[AuthContext] User Data Fetched:", data.role);
             }
           } else {
             // If user exists in Auth but not in Firestore (e.g. first Google Login)
@@ -357,7 +360,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     loginWithGoogle,
-    isSuperAdmin: userData?.role === 'superadmin' || currentUser?.email === SUPER_ADMIN_EMAIL,
+    isSuperAdmin: userData?.role === 'superadmin' || userData?.role === 'hr' || currentUser?.email === SUPER_ADMIN_EMAIL,
     loading
   };
 

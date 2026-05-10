@@ -25,7 +25,18 @@ import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, Timestamp
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { userData, isSuperAdmin } = useAuth();
+  const { userData, isSuperAdmin, loading: authLoading } = useAuth();
+  
+  // Debug Logging
+  useEffect(() => {
+    console.log("[Dashboard] State Check:", { 
+      hasUserData: !!userData, 
+      isSuperAdmin, 
+      authLoading,
+      uid: userData?.uid,
+      role: userData?.role 
+    });
+  }, [userData, isSuperAdmin, authLoading]);
   const [stats, setStats] = useState({
     totalEmployees: 0,
     activeTasks: 0,
