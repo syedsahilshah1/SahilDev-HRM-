@@ -27,7 +27,7 @@ const Payroll = () => {
 
   // Standardized role check
   const userRole = userData?.role?.toLowerCase();
-  const isSuperAdmin = userRole === 'superadmin' || authSuperAdmin || currentUser?.email === 'syedsahilshah1@gmail.com'; // Adding hardcoded fallback for safety
+  const isSuperAdmin = userRole === 'superadmin' || authSuperAdmin || currentUser?.email === 'sahilkhan536ah@gmail.com'; // Adding hardcoded fallback for safety
   const hasPayrollAccess = isSuperAdmin || userData?.permissions?.canViewPayroll === true;
 
   useEffect(() => {

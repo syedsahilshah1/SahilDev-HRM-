@@ -27,9 +27,9 @@ export const AuthProvider = ({ children }) => {
   const [cloudinaryConfig, setCloudinaryConfig] = useState({
     cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
     uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
-  });
+  }); 
 
-  const SUPER_ADMIN_EMAIL = 'sahildev212@gmail.com';
+  const SUPER_ADMIN_EMAIL = 'sahilkhan536ah@gmail.com';
 
   // Initialize Secondary Auth only when needed to avoid config errors on load
   const getSecondaryAuth = () => {

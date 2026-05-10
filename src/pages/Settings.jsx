@@ -79,8 +79,8 @@ const Settings = () => {
     server: 'smtp.gmail.com',
     port: '587',
     encryption: 'TLS',
-    user: import.meta.env.VITE_SMTP_USER || 'sk1784083@gmail.com',
-    password: import.meta.env.VITE_SMTP_PASS || 'oyci yxsu ddcs jgkf'
+    user: import.meta.env.VITE_SMTP_USER || '',
+    password: import.meta.env.VITE_SMTP_PASS || ''
   });
 
   const [companyPolicy, setCompanyPolicy] = useState('');

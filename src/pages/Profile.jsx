@@ -19,7 +19,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, query, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, getDoc, where } from 'firebase/firestore';
 
 const Profile = () => {
   const { uid } = useParams();

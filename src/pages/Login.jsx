@@ -77,7 +77,7 @@ const Login = () => {
 
         <div className="login-header">
           <h1>SahilDev </h1>
-          <p>Access your professional workspace</p>
+          <p>Access your professional  workspace</p>
         </div>
 
         {/* Role toggle removed as roles are now handled automatically by email/Firestore */}

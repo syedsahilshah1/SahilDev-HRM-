@@ -40,4 +40,4 @@ SahilDev HRM is a modern, secure, and highly scalable Human Resource Management 
     ```
 
 ## 📄 License
-Licensed under the MIT License. Developed with ❤️ by Sahil Dev.
+Licensed under the MIT License. Developed with ❤️ for Software House System.
