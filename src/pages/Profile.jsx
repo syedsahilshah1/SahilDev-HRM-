@@ -24,7 +24,16 @@ import { collection, onSnapshot, query, orderBy, doc, getDoc } from 'firebase/fi
 const Profile = () => {
   const { uid } = useParams();
   const navigate = useNavigate();
-  const { currentUser, userData, updateUserPassword, updateUserProfile, uploadUserDocument, deleteUserDocument, isSuperAdmin } = useAuth();
+  const { 
+    currentUser, 
+    userData, 
+    updateUserPassword, 
+    updateUserProfile, 
+    uploadUserDocument, 
+    updateProfileImage, 
+    deleteUserDocument, 
+    isSuperAdmin 
+  } = useAuth();
   
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,9 +57,6 @@ const Profile = () => {
   // Documents State
   const [docList, setDocList] = useState([]);
   const [openDocMenu, setOpenDocMenu] = useState(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadData, setUploadData] = useState({ name: '', type: 'pdf', file: null });
-  const [uploadLoading, setUploadLoading] = useState(false);
 
   useEffect(() => {
     const checkProfile = async () => {
@@ -147,6 +153,21 @@ const Profile = () => {
     }
   };
 
+  const handleProfileImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      await updateProfileImage(file);
+      alert('Profile image updated successfully!');
+    } catch (err) {
+      alert('Failed to update profile image: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDeactivate = async () => {
     if (window.confirm('Are you sure you want to deactivate this account?')) {
       try {
@@ -158,35 +179,23 @@ const Profile = () => {
     }
   };
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!uploadData.file) return alert('Please select a file');
-    
-    try {
-      setUploadLoading(true);
-      await uploadUserDocument(uploadData.file, uploadData.name || uploadData.file.name, uploadData.type);
-      setShowUploadModal(false);
-      setUploadData({ name: '', type: 'pdf', file: null });
-    } catch (err) {
-      alert('Upload failed: ' + err.message);
-    } finally {
-      setUploadLoading(false);
-    }
-  };
 
   useEffect(() => {
     const targetUid = uid || currentUser?.uid;
     if (!targetUid) return;
 
     const q = query(
-      collection(db, 'users', targetUid, 'documents'),
+      collection(db, 'employee_documents'),
+      where('employeeId', '==', targetUid),
       orderBy('createdAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        name: doc.data().templateName || doc.data().name || 'Document',
+        type: 'pdf' // All generated docs are treated as text/pdf for icon purposes
       }));
       setDocList(docs);
     });
@@ -207,11 +216,6 @@ const Profile = () => {
   if (loading) return <div className="p-10 text-center">Loading Profile...</div>;
   if (!profileData) return <div className="p-10 text-center">User not found</div>;
 
-  const schedule = [
-    { date: 'OCT 24', title: 'Q4 Performance Review', time: '14:30 - 15:30', location: 'Room 402' },
-    { date: 'OCT 28', title: 'New Hire Orientation (Host)', time: '09:00 - 12:00', location: 'Virtual' },
-  ];
-
   return (
     <div className="profile-page">
       <header className="profile-header">
@@ -228,14 +232,28 @@ const Profile = () => {
         </div>
 
         <div className="profile-hero">
-          <div className="profile-img-large">
-            {currentUser?.photoURL ? (
-               <img src={currentUser.photoURL} alt={profileData?.fullName} />
+          <div className="profile-img-large group relative cursor-pointer" onClick={() => isOwnProfile && document.getElementById('profile-upload').click()}>
+            {(profileData?.photoURL || (isOwnProfile && currentUser?.photoURL)) ? (
+               <img src={profileData?.photoURL || currentUser?.photoURL} alt={profileData?.fullName} />
             ) : (
                <div className="avatar-placeholder-large">
                   <UserIcon size={48} />
                </div>
             )}
+            {isOwnProfile && (
+              <div className="avatar-overlay">
+                <Upload size={24} />
+                <span>Change Photo</span>
+              </div>
+            )}
+            <input 
+              type="file" 
+              id="profile-upload" 
+              className="hidden" 
+              accept="image/*"
+              onChange={handleProfileImageChange}
+              style={{ display: 'none' }}
+            />
             <span className="status-dot-active"></span>
           </div>
           <div className="profile-main-info">
@@ -332,10 +350,7 @@ const Profile = () => {
                 <button className="tab">Attendance History</button>
              </div>
              <div className="docs-header">
-                <h3>Personnel Documents</h3>
-                <button className="text-btn blue" onClick={() => setShowUploadModal(true)}>
-                  <Upload size={16} /> Upload New
-                </button>
+                <h3>Received Documents</h3>
              </div>
              <div className="docs-list">
                 {docList.map((doc, idx) => (
@@ -420,64 +435,6 @@ const Profile = () => {
         </div>
       )}
 
-      {/* Upload Document Modal */}
-      {showUploadModal && (
-        <div className="modal-overlay">
-          <div className="modal-content card">
-            <div className="modal-header">
-              <h2>Upload Document</h2>
-              <button className="close-btn" onClick={() => setShowUploadModal(false)}><X size={20} /></button>
-            </div>
-
-            <form onSubmit={handleUpload}>
-              <div className="form-group">
-                <label>File Selection</label>
-                <input 
-                  type="file" 
-                  className="modal-input" 
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      setUploadData({
-                        ...uploadData,
-                        file: file,
-                        name: file.name
-                      });
-                    }
-                  }}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Display Name</label>
-                <input 
-                  type="text" 
-                  className="modal-input" 
-                  placeholder="e.g. Contract_Signed.pdf"
-                  value={uploadData.name}
-                  onChange={(e) => setUploadData({...uploadData, name: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>File Category</label>
-                <select 
-                  className="modal-input"
-                  value={uploadData.type}
-                  onChange={(e) => setUploadData({...uploadData, type: e.target.value})}
-                >
-                  <option value="pdf">PDF Document</option>
-                  <option value="img">Image / Photo</option>
-                  <option value="doc">Word Document</option>
-                </select>
-              </div>
-              <button type="submit" className="submit-btn" disabled={uploadLoading}>
-                {uploadLoading ? 'Uploading...' : 'Add to Records'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       <style>{`
         .profile-page { display: flex; flex-direction: column; gap: 2rem; }
@@ -562,7 +519,26 @@ const Profile = () => {
         .profile-img-large { position: relative; width: 120px; height: 120px; }
         .profile-img-large img, .avatar-placeholder-large { width: 100%; height: 100%; border-radius: 24px; object-fit: cover; }
         .avatar-placeholder-large { background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #64748b; }
-        .status-dot-active { position: absolute; bottom: -5px; right: -5px; width: 20px; height: 20px; background: #10b981; border: 4px solid white; border-radius: 50%; }
+        .avatar-overlay {
+          position: absolute;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.6);
+          border-radius: 24px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          color: white;
+          opacity: 0;
+          transition: opacity 0.2s;
+          font-size: 0.75rem;
+          font-weight: 700;
+        }
+        .profile-img-large:hover .avatar-overlay {
+          opacity: 1;
+        }
+        .status-dot-active { position: absolute; bottom: -5px; right: -5px; width: 20px; height: 20px; background: #10b981; border: 4px solid white; border-radius: 50%; z-index: 2; }
 
         .profile-main-info h1 { font-size: 2rem; font-weight: 800; color: #0f172a; }
         .profile-main-info .title { font-size: 1.125rem; color: #64748b; margin-bottom: 1.5rem; }
@@ -620,6 +596,83 @@ const Profile = () => {
           .profile-img-large { width: 100px; height: 100px; }
           .profile-main-info h1 { font-size: 1.5rem; }
         }
+
+        .upload-modal { max-width: 500px; }
+        .hidden-input { display: none; }
+        .file-drop-zone {
+          border: 2px dashed #e2e8f0;
+          border-radius: 16px;
+          padding: 2rem;
+          text-align: center;
+          transition: all 0.2s;
+          background: #f8fafc;
+          margin-top: 0.5rem;
+        }
+        .file-drop-zone:hover {
+          border-color: #3b82f6;
+          background: #eff6ff;
+        }
+        .drop-zone-label {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+          cursor: pointer;
+          color: #64748b;
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+        .file-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .file-name {
+          color: #0f172a;
+          font-weight: 700;
+        }
+        .file-size {
+          color: #94a3b8;
+          font-size: 0.75rem;
+        }
+        .form-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+          margin-top: 1.5rem;
+        }
+        .upload-progress-container {
+          margin-top: 1.5rem;
+        }
+        .progress-info {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin-bottom: 0.5rem;
+        }
+        .progress-bar-bg {
+          height: 8px;
+          background: #f1f5f9;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .progress-bar-fill {
+          height: 100%;
+          background: #3b82f6;
+          transition: width 0.3s ease;
+        }
+        .submit-btn.primary {
+          background: #3b82f6;
+          margin-top: 2rem;
+        }
+        .submit-btn.primary:hover {
+          background: #2563eb;
+        }
+        .text-sm { font-size: 0.875rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .text-primary { color: #3b82f6; }
       `}</style>
     </div>
   );

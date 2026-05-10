@@ -29,6 +29,12 @@ const Employees = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Custom Field States
+  const [showCustomDesig, setShowCustomDesig] = useState(false);
+  const [customDesig, setCustomDesig] = useState('');
+  const [showCustomDept, setShowCustomDept] = useState(false);
+  const [customDept, setCustomDept] = useState('');
+
   const { addEmployee, userData, isSuperAdmin } = useAuth();
 
   const menuRef = React.useRef(null);
@@ -59,7 +65,7 @@ const Employees = () => {
           setDesignations(docSnap.data().list || []);
         } else {
           // Fallback if document doesn't exist
-          setDesignations(['Software Engineer', 'Product Manager', 'Designer', 'HR Manager', 'Sales Executive']);
+          setDesignations(['Full Stack Developer', 'Frontend Developer', 'Backend Developer', 'UI/UX Designer', 'QA Tester', 'Project Manager', 'DevOps Engineer', 'Graphic Designer']);
         }
       },
       (err) => {
@@ -73,7 +79,7 @@ const Employees = () => {
         if (docSnap.exists()) {
           setDepartments(docSnap.data().list || []);
         } else {
-          setDepartments(['IT', 'HR', 'Marketing', 'Sales', 'Operations']);
+          setDepartments(['Development', 'Quality Assurance', 'UI/UX Design', 'Marketing', 'Human Resources', 'Management']);
         }
       },
       (err) => {
@@ -103,9 +109,23 @@ const Employees = () => {
     try {
       setError('');
       setSubmitting(true);
-      await addEmployee(formData.email, formData.fullName, formData.designation, formData.role, formData.dept, formData.salary);
+      
+      const finalDesignation = showCustomDesig ? customDesig : formData.designation;
+      const finalDept = showCustomDept ? customDept : formData.dept;
+
+      if (!finalDesignation || !finalDept) {
+        setError('Please provide a valid Job Title and Department.');
+        setSubmitting(false);
+        return;
+      }
+
+      await addEmployee(formData.email, formData.fullName, finalDesignation, formData.role, finalDept, '0');
       setShowAddModal(false);
-      setFormData({ fullName: '', email: '', role: 'staff', designation: '', salary: '', dept: '' });
+      setFormData({ fullName: '', email: '', role: 'staff', designation: '', dept: '' });
+      setCustomDesig('');
+      setCustomDept('');
+      setShowCustomDesig(false);
+      setShowCustomDept(false);
     } catch (err) {
       setError('Failed to add employee: ' + err.message);
     } finally {
@@ -121,15 +141,22 @@ const Employees = () => {
       setError('');
       setSubmitting(true);
       const userRef = doc(db, 'users', editingMember.uid);
+      
+      const finalDesignation = showCustomDesig ? customDesig : editingMember.designation;
+      const finalDept = showCustomDept ? customDept : editingMember.dept;
+
       await updateDoc(userRef, {
         fullName: editingMember.fullName,
         role: editingMember.role,
-        designation: editingMember.designation,
-        salary: editingMember.salary,
-        dept: editingMember.dept || 'Unassigned'
+        designation: finalDesignation,
+        dept: finalDept || 'Unassigned'
       });
       setShowEditModal(false);
       setEditingMember(null);
+      setCustomDesig('');
+      setCustomDept('');
+      setShowCustomDesig(false);
+      setShowCustomDept(false);
     } catch (err) {
       setError('Failed to update member: ' + err.message);
     } finally {
@@ -380,10 +407,10 @@ const Employees = () => {
               </div>
 
               <div className="form-section">
-                <h3 className="section-title">Role & Compensation</h3>
+                <h3 className="section-title">Organizational Placement</h3>
                 <div className="form-row">
                   <div className="form-group flex-1">
-                    <label>Access Level (Role)</label>
+                    <label>Access Level</label>
                     <select 
                       className="modal-input"
                       value={formData.role}
@@ -401,15 +428,35 @@ const Employees = () => {
                     <label>Job Title</label>
                     <select 
                       className="modal-input"
-                      value={formData.designation}
-                      onChange={(e) => setFormData({...formData, designation: e.target.value})}
+                      value={showCustomDesig ? "Other" : formData.designation}
+                      onChange={(e) => {
+                        if (e.target.value === "Other") {
+                          setShowCustomDesig(true);
+                          setFormData({...formData, designation: ''});
+                        } else {
+                          setShowCustomDesig(false);
+                          setFormData({...formData, designation: e.target.value});
+                        }
+                      }}
                       required
                     >
                       <option value="" disabled>Select Job Title</option>
                       {designations.map(desig => (
                         <option key={desig} value={desig}>{desig}</option>
                       ))}
+                      <option value="Other">+ Other (Type custom...)</option>
                     </select>
+                    {showCustomDesig && (
+                      <input 
+                        type="text" 
+                        className="modal-input mt-2" 
+                        placeholder="Type custom Job Title"
+                        value={customDesig}
+                        onChange={(e) => setCustomDesig(e.target.value)}
+                        autoFocus
+                        required
+                      />
+                    )}
                     <p className="helper-text">e.g., Software Engineer</p>
                   </div>
                 </div>
@@ -419,28 +466,36 @@ const Employees = () => {
                     <label>Department</label>
                     <select 
                       className="modal-input"
-                      value={formData.dept}
-                      onChange={(e) => setFormData({...formData, dept: e.target.value})}
+                      value={showCustomDept ? "Other" : formData.dept}
+                      onChange={(e) => {
+                        if (e.target.value === "Other") {
+                          setShowCustomDept(true);
+                          setFormData({...formData, dept: ''});
+                        } else {
+                          setShowCustomDept(false);
+                          setFormData({...formData, dept: e.target.value});
+                        }
+                      }}
                       required
                     >
                       <option value="" disabled>Select Department</option>
                       {departments.map(d => (
                         <option key={d} value={d}>{d}</option>
                       ))}
+                      <option value="Other">+ Other (Type custom...)</option>
                     </select>
+                    {showCustomDept && (
+                      <input 
+                        type="text" 
+                        className="modal-input mt-2" 
+                        placeholder="Type custom Department"
+                        value={customDept}
+                        onChange={(e) => setCustomDept(e.target.value)}
+                        autoFocus
+                        required
+                      />
+                    )}
                     <p className="helper-text">Choose the team the employee belongs to</p>
-                  </div>
-                  <div className="form-group flex-1">
-                    <label>Base Salary (Monthly)</label>
-                    <input 
-                      type="number" 
-                      className="modal-input" 
-                      placeholder="e.g. 50000"
-                      value={formData.salary}
-                      onChange={(e) => setFormData({...formData, salary: e.target.value})}
-                      required
-                    />
-                    <p className="helper-text">Enter amount in PKR</p>
                   </div>
                 </div>
               </div>
@@ -483,10 +538,10 @@ const Employees = () => {
               </div>
 
               <div className="form-section">
-                <h3 className="section-title">Role & Compensation</h3>
+                <h3 className="section-title">Organizational Placement</h3>
                 <div className="form-row">
                   <div className="form-group flex-1">
-                    <label>Access Level (Role)</label>
+                    <label>Access Level</label>
                     <select 
                       className="modal-input"
                       value={editingMember.role}
@@ -504,15 +559,35 @@ const Employees = () => {
                     <label>Job Title</label>
                     <select 
                       className="modal-input"
-                      value={editingMember.designation}
-                      onChange={(e) => setEditingMember({...editingMember, designation: e.target.value})}
+                      value={showCustomDesig ? "Other" : editingMember.designation}
+                      onChange={(e) => {
+                        if (e.target.value === "Other") {
+                          setShowCustomDesig(true);
+                          setEditingMember({...editingMember, designation: ''});
+                        } else {
+                          setShowCustomDesig(false);
+                          setEditingMember({...editingMember, designation: e.target.value});
+                        }
+                      }}
                       required
                     >
                       <option value="" disabled>Select Job Title</option>
                       {designations.map(desig => (
                         <option key={desig} value={desig}>{desig}</option>
                       ))}
+                      <option value="Other">+ Other (Type custom...)</option>
                     </select>
+                    {showCustomDesig && (
+                      <input 
+                        type="text" 
+                        className="modal-input mt-2" 
+                        placeholder="Type custom Job Title"
+                        value={customDesig}
+                        onChange={(e) => setCustomDesig(e.target.value)}
+                        autoFocus
+                        required
+                      />
+                    )}
                     <p className="helper-text">e.g., Software Engineer</p>
                   </div>
                 </div>
@@ -522,28 +597,36 @@ const Employees = () => {
                     <label>Department</label>
                     <select 
                       className="modal-input"
-                      value={editingMember.dept || ''}
-                      onChange={(e) => setEditingMember({...editingMember, dept: e.target.value})}
+                      value={showCustomDept ? "Other" : editingMember.dept}
+                      onChange={(e) => {
+                        if (e.target.value === "Other") {
+                          setShowCustomDept(true);
+                          setEditingMember({...editingMember, dept: ''});
+                        } else {
+                          setShowCustomDept(false);
+                          setEditingMember({...editingMember, dept: e.target.value});
+                        }
+                      }}
                       required
                     >
                       <option value="" disabled>Select Department</option>
                       {departments.map(d => (
                         <option key={d} value={d}>{d}</option>
                       ))}
+                      <option value="Other">+ Other (Type custom...)</option>
                     </select>
+                    {showCustomDept && (
+                      <input 
+                        type="text" 
+                        className="modal-input mt-2" 
+                        placeholder="Type custom Department"
+                        value={customDept}
+                        onChange={(e) => setCustomDept(e.target.value)}
+                        autoFocus
+                        required
+                      />
+                    )}
                     <p className="helper-text">Choose the team the employee belongs to</p>
-                  </div>
-                  <div className="form-group flex-1">
-                    <label>Base Salary (Monthly)</label>
-                    <input 
-                      type="number" 
-                      className="modal-input" 
-                      placeholder="e.g. 50000"
-                      value={editingMember.salary}
-                      onChange={(e) => setEditingMember({...editingMember, salary: e.target.value})}
-                      required
-                    />
-                    <p className="helper-text">Enter amount in PKR</p>
                   </div>
                 </div>
               </div>

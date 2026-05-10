@@ -196,7 +196,7 @@ const Dashboard = () => {
             <div className="card-header-row">
               <div className="card-title-group">
                 <h3>Team Overview</h3>
-                <p className="project-tag">HRM SYSTEM LIVE</p>
+                <p className="project-tag">SOFTWARE HOUSE SYSTEM</p>
               </div>
               <div className="flex items-center gap-2">
                 <Users size={24} className="text-blue" />

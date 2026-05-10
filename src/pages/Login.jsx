@@ -76,7 +76,7 @@ const Login = () => {
         )}
 
         <div className="login-header">
-          <h1>SahilDev HRM</h1>
+          <h1>SahilDev </h1>
           <p>Access your professional workspace</p>
         </div>
 

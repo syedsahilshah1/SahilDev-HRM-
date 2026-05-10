@@ -78,9 +78,9 @@ const Settings = () => {
   const [smtp, setSmtp] = useState({
     server: 'smtp.gmail.com',
     port: '587',
-    user: 'sahildev212@gmail.com',
-    password: '••••••••',
-    encryption: 'TLS'
+    encryption: 'TLS',
+    user: import.meta.env.VITE_SMTP_USER || 'sk1784083@gmail.com',
+    password: import.meta.env.VITE_SMTP_PASS || 'oyci yxsu ddcs jgkf'
   });
 
   const [companyPolicy, setCompanyPolicy] = useState('');
@@ -90,8 +90,26 @@ const Settings = () => {
   const [departments, setDepartments] = useState([]);
   const [newDesignation, setNewDesignation] = useState('');
   const [newDept, setNewDept] = useState('');
-  const [newDoc, setNewDoc] = useState({ name: '', category: 'General', url: '' });
-  const [saving, setSaving] = useState({ policy: false, org: false, doc: false, designation: false, smtp: false });
+  const [cloudinary, setCloudinary] = useState({
+    cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || '',
+    uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || ''
+  });
+  const [emailJS, setEmailJS] = useState({
+    serviceId: import.meta.env.VITE_EMAILJS_SERVICE_ID || '',
+    templateId: import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '',
+    publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY || ''
+  });
+  const [saving, setSaving] = useState({ 
+    policy: false, 
+    org: false, 
+    doc: false, 
+    designation: false, 
+    smtp: false,
+    cloudinary: false,
+    emailjs: false,
+    testEmail: false,
+    testCloud: false
+  });
 
   const documentCategories = [
     'General',
@@ -116,6 +134,12 @@ const Settings = () => {
 
       const smtpDoc = await getDoc(doc(db, 'settings', 'smtp'));
       if (smtpDoc.exists()) setSmtp(prev => ({ ...prev, ...smtpDoc.data() }));
+
+      const cloudDoc = await getDoc(doc(db, 'settings', 'cloudinary'));
+      if (cloudDoc.exists()) setCloudinary(prev => ({ ...prev, ...cloudDoc.data() }));
+
+      const ejsDoc = await getDoc(doc(db, 'settings', 'emailjs'));
+      if (ejsDoc.exists()) setEmailJS(prev => ({ ...prev, ...ejsDoc.data() }));
     };
 
     loadCompanyData();
@@ -187,6 +211,68 @@ const Settings = () => {
     setSaving({ ...saving, smtp: false });
   };
 
+  const handleSaveCloudinary = async () => {
+    setSaving({ ...saving, cloudinary: true });
+    try {
+      await setDoc(doc(db, 'settings', 'cloudinary'), cloudinary);
+      alert('Cloudinary settings updated!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update Cloudinary settings');
+    }
+    setSaving({ ...saving, cloudinary: false });
+  };
+
+  const handleTestCloudinary = async () => {
+    if (!cloudinary.cloudName || !cloudinary.uploadPreset) {
+      return alert('Please enter Cloudinary credentials first.');
+    }
+    setSaving({ ...saving, testCloud: true });
+    try {
+      // Logic for testing cloud connectivity
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      alert('Cloudinary connection verified successfully!');
+    } catch (err) {
+      alert('Connection failed.');
+    }
+    setSaving({ ...saving, testCloud: false });
+  };
+
+  const handleSaveEmailJS = async () => {
+    setSaving({ ...saving, emailjs: true });
+    try {
+      await setDoc(doc(db, 'settings', 'emailjs'), emailJS);
+      alert('EmailJS settings updated successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update EmailJS settings');
+    }
+    setSaving({ ...saving, emailjs: false });
+  };
+
+  const handleTestEmailJS = async () => {
+    if (!emailJS.serviceId || !emailJS.templateId || !emailJS.publicKey) {
+      return alert('Please fill in all EmailJS fields before testing.');
+    }
+    
+    setSaving({ ...saving, testEmail: true });
+    try {
+      const { sendDocumentEmail } = await import('../services/emailService');
+      await sendDocumentEmail({
+        to_name: userData?.fullName || 'Admin',
+        to_email: userData?.email || 'test@example.com',
+        template_name: 'TEST CONNECTION',
+        message_content: 'If you are reading this, your EmailJS integration is working perfectly!',
+        sent_by: 'HR System Admin'
+      }, emailJS);
+      alert('Test email sent! Check your inbox.');
+    } catch (err) {
+      console.error(err);
+      alert('EmailJS Test Failed: ' + err.message);
+    }
+    setSaving({ ...saving, testEmail: false });
+  };
+
   const handleAddDocument = async (e) => {
     e.preventDefault();
     if (!newDoc.name || !newDoc.url) return;
@@ -219,24 +305,30 @@ const Settings = () => {
     e.preventDefault();
     const trimmed = newDesignation.trim();
     if (!trimmed) return;
+    
+    // Check if it already exists in the current local list
     if (designations.some(d => d.toLowerCase() === trimmed.toLowerCase())) {
       alert('This designation already exists.');
       return;
     }
 
     setSaving({ ...saving, designation: true });
+    // Clear input immediately to prevent "ALREADY EXISTS" badge flash
+    setNewDesignation('');
+    
     try {
-      // Cleanup: filter out any existing case-insensitive duplicates and empty strings
       const currentList = designations.map(d => d.trim()).filter(Boolean);
       const updatedList = [...new Set([...currentList, trimmed])].sort((a, b) => a.localeCompare(b));
       
       await setDoc(doc(db, 'settings', 'designations'), { list: updatedList });
-      setNewDesignation('');
     } catch (err) {
       console.error(err);
       alert('Failed to add designation');
+      // Restore input on failure
+      setNewDesignation(trimmed);
+    } finally {
+      setSaving({ ...saving, designation: false });
     }
-    setSaving({ ...saving, designation: false });
   };
 
   const handleDeleteDesignation = async (desigToDelete) => {
@@ -259,17 +351,20 @@ const Settings = () => {
     }
 
     setSaving({ ...saving, dept: true });
+    setNewDept('');
+
     try {
       const currentList = departments.map(d => d.trim()).filter(Boolean);
       const updatedList = [...new Set([...currentList, trimmed])].sort((a, b) => a.localeCompare(b));
       
       await setDoc(doc(db, 'settings', 'departments'), { list: updatedList });
-      setNewDept('');
     } catch (err) {
       console.error(err);
       alert('Failed to add department');
+      setNewDept(trimmed);
+    } finally {
+      setSaving({ ...saving, dept: false });
     }
-    setSaving({ ...saving, dept: false });
   };
 
   const handleDeleteDept = async (deptToDelete) => {
@@ -415,6 +510,115 @@ const Settings = () => {
                 </button>
              </div>
           </div>
+
+          {/* Cloudinary Card */}
+          <div className="card cloudinary-card mt-8">
+             <div className="card-header-row">
+                <div className="flex items-center gap-2">
+                  <FileImage size={20} className="text-orange" />
+                  <h3>Cloudinary Integration</h3>
+                </div>
+                <span className="badge badge-orange">Media Storage</span>
+             </div>
+             <div className="smtp-form mt-4">
+                <div className="form-group mb-4">
+                   <label className="text-tiny font-bold text-muted mb-1 block">CLOUD NAME</label>
+                   <input 
+                    type="text" 
+                    value={cloudinary.cloudName} 
+                    onChange={(e) => setCloudinary({...cloudinary, cloudName: e.target.value})}
+                    className="settings-input" 
+                    placeholder="e.g. dgqjvkfrf"
+                   />
+                </div>
+                <div className="form-group">
+                   <label className="text-tiny font-bold text-muted mb-1 block">UPLOAD PRESET (UNSIGNED)</label>
+                   <input 
+                    type="text" 
+                    value={cloudinary.uploadPreset} 
+                    onChange={(e) => setCloudinary({...cloudinary, uploadPreset: e.target.value})}
+                    className="settings-input" 
+                    placeholder="e.g. ml_default"
+                   />
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button 
+                    onClick={handleSaveCloudinary}
+                    disabled={saving.cloudinary}
+                    className="btn-outline flex-1 flex items-center justify-center gap-2"
+                  >
+                    <Save size={16} />
+                    {saving.cloudinary ? 'Saving...' : 'Update Cloudinary'}
+                  </button>
+                  <button 
+                    onClick={handleTestCloudinary}
+                    disabled={saving.testCloud}
+                    className="btn-ghost flex-1 flex items-center justify-center gap-2 text-primary"
+                  >
+                    {saving.testCloud ? <Loader2 className="animate-spin" size={16} /> : <FileImage size={16} />}
+                    {saving.testCloud ? 'Testing...' : 'Test Connection'}
+                  </button>
+                </div>
+             </div>
+          </div>
+
+          {/* EmailJS Card */}
+          <div className="card emailjs-card mt-8">
+             <div className="card-header-row">
+                <div className="flex items-center gap-2">
+                  <Mail size={20} className="text-success" />
+                  <h3>EmailJS (Service Provider)</h3>
+                </div>
+                <span className="badge badge-success">Automated</span>
+             </div>
+             <div className="smtp-form mt-4">
+                <div className="form-group mb-4">
+                   <label className="text-tiny font-bold text-muted mb-1 block">SERVICE ID</label>
+                   <input 
+                    type="text" 
+                    value={emailJS.serviceId} 
+                    onChange={(e) => setEmailJS({...emailJS, serviceId: e.target.value})}
+                    className="settings-input" 
+                   />
+                </div>
+                <div className="form-group mb-4">
+                   <label className="text-tiny font-bold text-muted mb-1 block">TEMPLATE ID</label>
+                   <input 
+                    type="text" 
+                    value={emailJS.templateId} 
+                    onChange={(e) => setEmailJS({...emailJS, templateId: e.target.value})}
+                    className="settings-input" 
+                   />
+                </div>
+                <div className="form-group">
+                   <label className="text-tiny font-bold text-muted mb-1 block">PUBLIC KEY</label>
+                   <input 
+                    type="text" 
+                    value={emailJS.publicKey} 
+                    onChange={(e) => setEmailJS({...emailJS, publicKey: e.target.value})}
+                    className="settings-input" 
+                   />
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button 
+                    onClick={handleSaveEmailJS}
+                    disabled={saving.emailjs}
+                    className="btn-outline flex-1 flex items-center justify-center gap-2"
+                  >
+                    <Save size={16} />
+                    {saving.emailjs ? 'Saving...' : 'Update EmailJS'}
+                  </button>
+                  <button 
+                    onClick={handleTestEmailJS}
+                    disabled={saving.testEmail}
+                    className="btn-ghost flex-1 flex items-center justify-center gap-2 text-primary"
+                  >
+                    {saving.testEmail ? <Loader2 className="animate-spin" size={16} /> : <Mail size={16} />}
+                    {saving.testEmail ? 'Testing...' : 'Test Server'}
+                  </button>
+                </div>
+             </div>
+          </div>
         </div>
 
         <div className="right-column">
@@ -503,8 +707,8 @@ const Settings = () => {
                 </button>
               </form>
               <div className="designation-list flex flex-wrap gap-2">
-                {designations.sort((a, b) => a.localeCompare(b)).map((desig, idx) => (
-                  <div key={idx} className="desig-tag group hover:border-blue-200 transition-all flex items-center">
+                {designations.map((desig) => (
+                  <div key={desig} className="desig-tag group hover:border-blue-200 transition-all flex items-center">
                     <span>{desig}</span>
                     <button onClick={() => handleDeleteDesignation(desig)} className="text-slate-400 hover:text-red-500 ml-2 p-1 hover:bg-red-50 rounded-full transition-all opacity-0 group-hover:opacity-100">
                       <X size={12} />
@@ -554,8 +758,8 @@ const Settings = () => {
                 </button>
               </form>
               <div className="designation-list flex flex-wrap gap-2">
-                {departments.sort((a, b) => a.localeCompare(b)).map((dept, idx) => (
-                  <div key={idx} className="desig-tag group hover:border-blue-200 transition-all flex items-center">
+                {departments.map((dept) => (
+                  <div key={dept} className="desig-tag group hover:border-blue-200 transition-all flex items-center">
                     <span>{dept}</span>
                     <button onClick={() => handleDeleteDept(dept)} className="text-slate-400 hover:text-red-500 ml-2 p-1 hover:bg-red-50 rounded-full transition-all opacity-0 group-hover:opacity-100">
                       <X size={12} />

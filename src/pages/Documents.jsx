@@ -4,12 +4,13 @@ import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, getDoc
 import { templatesContent } from '../data/templatesContent';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
+import { sendDocumentEmail } from '../services/emailService';
 
 const Documents = () => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('repository');
+  const [activeTab, setActiveTab] = useState('templates');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [previewDoc, setPreviewDoc] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -20,6 +21,7 @@ const Documents = () => {
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [placeholders, setPlaceholders] = useState({});
   const [sending, setSending] = useState(false);
+  const [emailConfig, setEmailConfig] = useState(null);
   const { isSuperAdmin, userData } = useAuth();
 
   const templates = [
@@ -127,12 +129,24 @@ const Documents = () => {
 
   useEffect(() => {
     if (showSendModal) {
-      const fetchEmployees = async () => {
+      const fetchEmployeesAndConfig = async () => {
+        // Fetch Employees
         const q = query(collection(db, 'users'), orderBy('fullName', 'asc'));
         const querySnapshot = await getDocs(q);
         setEmployees(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        // Fetch Email Config
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const configSnap = await getDoc(doc(db, 'settings', 'emailjs'));
+          if (configSnap.exists()) {
+            setEmailConfig(configSnap.data());
+          }
+        } catch (err) {
+          console.error("Error fetching email config:", err);
+        }
       };
-      fetchEmployees();
+      fetchEmployeesAndConfig();
     }
   }, [showSendModal]);
 
@@ -179,12 +193,16 @@ const Documents = () => {
         createdAt: serverTimestamp(),
       });
 
-      // SMTP Simulation
-      console.log(`[SMTP SIMULATION] Sending email to ${employee?.email}...`);
-      console.log(`Subject: ${selectedTemplate}`);
-      console.log(`Content Preview: ${finalContent.substring(0, 100)}...`);
+      // Real Email Send
+      await sendDocumentEmail({
+        to_name: employee?.fullName || 'Employee',
+        to_email: employee?.email,
+        template_name: selectedTemplate,
+        message_content: finalContent,
+        sent_by: userData?.fullName || 'HR Admin'
+      }, emailConfig || {});
 
-      alert(`Successfully sent "${selectedTemplate}" to ${employee?.fullName}. It will now appear in their profile.`);
+      alert(`Successfully sent "${selectedTemplate}" to ${employee?.fullName} and recorded in history.`);
       setShowSendModal(false);
       setSelectedTemplate(null);
     } catch (err) {
@@ -283,7 +301,7 @@ const Documents = () => {
           className={`tab-btn ${activeTab === 'repository' ? 'active' : ''}`}
           onClick={() => setActiveTab('repository')}
         >
-          Repository
+          Sent History
         </button>
         {isSuperAdmin && (
           <button 
