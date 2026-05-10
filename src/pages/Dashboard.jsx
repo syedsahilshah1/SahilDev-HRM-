@@ -21,7 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, Timestamp, orderBy, getDocs } from 'firebase/firestore';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -57,15 +57,18 @@ const Dashboard = () => {
   }, [userData?.uid]);
 
   const handleAttendance = async (type) => {
-    if (!userData?.uid) return;
+    if (!userData?.uid || attendanceLoading) return;
+    
     setAttendanceLoading(true);
     try {
       // Get public IP
       let ip = 'Unknown';
       try {
         const ipResponse = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipResponse.json();
-        ip = ipData.ip;
+        if (ipResponse.ok) {
+          const ipData = await ipResponse.json();
+          ip = ipData.ip;
+        }
       } catch (e) {
         console.warn("IP fetch failed:", e);
       }
@@ -73,6 +76,22 @@ const Dashboard = () => {
       const today = new Date().toISOString().split('T')[0];
 
       if (type === 'check-in') {
+        // Strict server-side check before adding
+        const qCheck = query(
+          collection(db, 'daily_attendance'),
+          where('userId', '==', userData.uid),
+          where('date', '==', today)
+        );
+        const checkSnap = await getDocs(qCheck);
+        
+        if (!checkSnap.empty) {
+          console.warn("Check-in already exists for today");
+          const existingData = checkSnap.docs[0].data();
+          setTodayRecord({ id: checkSnap.docs[0].id, ...existingData });
+          setAttendanceLoading(false);
+          return;
+        }
+
         await addDoc(collection(db, 'daily_attendance'), {
           userId: userData.uid,
           userName: userData.fullName || userData.displayName || 'Staff Member',
@@ -83,7 +102,8 @@ const Dashboard = () => {
           createdAt: Timestamp.now()
         });
       } else if (type === 'check-out' && todayRecord?.id) {
-        await updateDoc(doc(db, 'daily_attendance', todayRecord.id), {
+        const docRef = doc(db, 'daily_attendance', todayRecord.id);
+        await updateDoc(docRef, {
           checkOut: Timestamp.now(),
           checkOutIp: ip
         });
@@ -196,7 +216,7 @@ const Dashboard = () => {
             <div className="card-header-row">
               <div className="card-title-group">
                 <h3>Team Overview</h3>
-                <p className="project-tag">SOFTWARE HOUSE SYSTEM</p>
+                <p className="project-tag">SAHILDEV HRM</p>
               </div>
               <div className="flex items-center gap-2">
                 <Users size={24} className="text-blue" />

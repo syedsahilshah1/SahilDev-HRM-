@@ -15,6 +15,7 @@ import {
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { sendTaskAssignmentEmail } from '../services/emailService';
 
 const Tasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -101,14 +102,28 @@ const Tasks = () => {
       
       const selectedEmp = employees.find(emp => emp.uid === formData.assignedTo);
       
-      await addDoc(collection(db, 'tasks'), {
+      const taskData = {
         ...formData,
         status: 'To-do',
         createdAt: serverTimestamp(),
         assignedToName: selectedEmp?.fullName || 'Unknown',
+        assignedToEmail: selectedEmp?.email || '',
         createdBy: userData?.fullName || 'Admin',
         createdById: userData?.uid || 'system'
-      });
+      };
+
+      await addDoc(collection(db, 'tasks'), taskData);
+
+      // Send email notification
+      if (taskData.assignedToEmail) {
+        try {
+          await sendTaskAssignmentEmail(taskData);
+          console.log("Task email sent successfully.");
+        } catch (emailErr) {
+          console.error("Failed to send task email:", emailErr);
+          // Don't alert the user, just log it to avoid interrupting the flow
+        }
+      }
 
       setShowAddModal(false);
       setFormData({ title: '', description: '', priority: 'Medium', dueDate: '', assignedTo: '' });

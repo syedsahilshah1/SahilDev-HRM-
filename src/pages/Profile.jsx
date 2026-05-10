@@ -58,6 +58,11 @@ const Profile = () => {
   const [docList, setDocList] = useState([]);
   const [openDocMenu, setOpenDocMenu] = useState(null);
 
+  // Tabs and Attendance History
+  const [activeTab, setActiveTab] = useState('documents');
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
   useEffect(() => {
     const checkProfile = async () => {
       setLoading(true);
@@ -204,6 +209,33 @@ const Profile = () => {
   }, [uid, currentUser]);
 
   useEffect(() => {
+    const targetUid = uid || currentUser?.uid;
+    if (!targetUid || activeTab !== 'attendance') return;
+
+    setAttendanceLoading(true);
+    const q = query(
+      collection(db, 'daily_attendance'),
+      where('userId', '==', targetUid),
+      orderBy('date', 'desc'),
+      orderBy('checkIn', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAttendanceLogs(logs);
+      setAttendanceLoading(false);
+    }, (err) => {
+      console.error("Error fetching attendance logs:", err);
+      setAttendanceLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [uid, currentUser, activeTab]);
+
+  useEffect(() => {
     const handleClickOutside = (e) => {
       if (!e.target.closest('.menu-container')) {
         setOpenDocMenu(null);
@@ -345,50 +377,103 @@ const Profile = () => {
 
         <div className="profile-right">
           <div className="card docs-card">
-             <div className="tabs">
-                <button className="tab active">Documents</button>
-                <button className="tab">Attendance History</button>
-             </div>
-             <div className="docs-header">
-                <h3>Received Documents</h3>
-             </div>
-             <div className="docs-list">
-                {docList.map((doc, idx) => (
-                  <div key={idx} className="doc-item">
-                     <div className={`doc-icon ${doc.type}`}>
-                        {doc.type === 'pdf' ? <FileText size={20} /> : doc.type === 'img' ? <FileImage size={20} /> : <FileCode size={20} />}
-                     </div>
-                     <div className="doc-meta">
-                        <p className="doc-name">{doc.name}</p>
-                        <p className="doc-details">Added {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'N/A'} • {doc.size}</p>
-                     </div>
-                     <div className="relative menu-container">
-                        <button 
-                          className="icon-btn-ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenDocMenu(openDocMenu === idx ? null : idx);
-                          }}
-                        >
-                          <MoreVertical size={18} />
-                        </button>
-                        
-                        {openDocMenu === idx && (
-                          <div className="dropdown-menu card shadow-lg">
-                            <a href={doc.url} target="_blank" rel="noopener noreferrer" className="dropdown-item" onClick={() => setOpenDocMenu(null)}>
-                              <Download size={16} />
-                              <span>Download</span>
-                            </a>
-                            <button className="dropdown-item text-danger" onClick={() => handleDeleteDoc(doc)}>
-                              <Trash2 size={16} />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        )}
-                     </div>
+              <div className="tabs">
+                <button 
+                  className={`tab ${activeTab === 'documents' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('documents')}
+                >
+                  Documents
+                </button>
+                <button 
+                  className={`tab ${activeTab === 'attendance' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('attendance')}
+                >
+                  Attendance History
+                </button>
+              </div>
+
+              {activeTab === 'documents' ? (
+                <>
+                  <div className="docs-header">
+                    <h3>Received Documents</h3>
                   </div>
-                ))}
-             </div>
+                  <div className="docs-list">
+                    {docList.length === 0 ? (
+                      <p className="text-muted p-4 text-center">No documents found.</p>
+                    ) : docList.map((doc, idx) => (
+                      <div key={idx} className="doc-item">
+                        <div className={`doc-icon ${doc.type}`}>
+                          {doc.type === 'pdf' ? <FileText size={20} /> : doc.type === 'img' ? <FileImage size={20} /> : <FileCode size={20} />}
+                        </div>
+                        <div className="doc-meta">
+                          <p className="doc-name">{doc.name}</p>
+                          <p className="doc-details">Added {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'N/A'} • {doc.size}</p>
+                        </div>
+                        <div className="relative menu-container">
+                          <button 
+                            className="icon-btn-ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDocMenu(openDocMenu === idx ? null : idx);
+                            }}
+                          >
+                            <MoreVertical size={18} />
+                          </button>
+                          
+                          {openDocMenu === idx && (
+                            <div className="dropdown-menu card shadow-lg">
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer" className="dropdown-item" onClick={() => setOpenDocMenu(null)}>
+                                <Download size={16} />
+                                <span>Download</span>
+                              </a>
+                              <button className="dropdown-item text-danger" onClick={() => handleDeleteDoc(doc)}>
+                                <Trash2 size={16} />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="attendance-history">
+                  <div className="docs-header">
+                    <h3>Recent Attendance</h3>
+                  </div>
+                  <div className="attendance-table-container">
+                    <table className="attendance-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Status</th>
+                          <th>Check In</th>
+                          <th>Check Out</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {attendanceLoading ? (
+                          <tr><td colSpan="4" className="text-center p-4">Loading history...</td></tr>
+                        ) : attendanceLogs.length === 0 ? (
+                          <tr><td colSpan="4" className="text-center p-4">No attendance records found.</td></tr>
+                        ) : attendanceLogs.map((log) => (
+                          <tr key={log.id}>
+                            <td>{log.date}</td>
+                            <td>
+                              <span className={`status-badge ${log.status === 'Present' ? 'present' : 'late'}`}>
+                                {log.status || 'Present'}
+                              </span>
+                            </td>
+                            <td>{(log.checkIn && typeof log.checkIn.toDate === 'function') ? log.checkIn.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                            <td>{(log.checkOut && typeof log.checkOut.toDate === 'function') ? log.checkOut.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
           </div>
         </div>
       </div>
@@ -673,6 +758,51 @@ const Profile = () => {
         .text-sm { font-size: 0.875rem; }
         .mb-2 { margin-bottom: 0.5rem; }
         .text-primary { color: #3b82f6; }
+        .text-muted { color: #64748b; }
+        
+        .attendance-table-container { margin-top: 1.5rem; border-radius: 12px; border: 1px solid #f1f5f9; overflow: hidden; }
+        .attendance-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
+        .attendance-table th { background: #f8fafc; padding: 1rem; color: #64748b; font-weight: 700; border-bottom: 1px solid #f1f5f9; }
+        .attendance-table td { padding: 1rem; color: #1e293b; font-weight: 600; border-bottom: 1px solid #f1f5f9; }
+        
+        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; }
+        .status-badge.present { background: #f0fdf4; color: #10b981; }
+        .status-badge.late { background: #fff7ed; color: #f97316; }
+
+        /* Leave Summary Styles */
+        .leave-summary { margin-top: 1.5rem; }
+        .summary-item { margin-bottom: 1.25rem; }
+        .summary-label { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          margin-bottom: 0.5rem; 
+        }
+        .summary-label span:first-child { 
+          font-size: 0.75rem; 
+          font-weight: 800; 
+          color: #64748b; 
+          letter-spacing: 0.05em;
+        }
+        .summary-label span:last-child { 
+          font-size: 0.875rem; 
+          font-weight: 700; 
+          color: #0f172a; 
+        }
+        .progress-bar { 
+          height: 8px; 
+          background: #f1f5f9; 
+          border-radius: 4px; 
+          overflow: hidden; 
+        }
+        .progress { 
+          height: 100%; 
+          background: #3b82f6; 
+          border-radius: 4px; 
+        }
+        .progress.dark { 
+          background: #0f172a; 
+        }
       `}</style>
     </div>
   );

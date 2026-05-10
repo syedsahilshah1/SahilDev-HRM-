@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
     uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
   }); 
 
-  const SUPER_ADMIN_EMAIL = 'sahilkhan536ah@gmail.com';
+  const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPERADMIN_EMAIL || 'sahilkhan536ah@gmail.com';
 
   // Initialize Secondary Auth only when needed to avoid config errors on load
   const getSecondaryAuth = () => {
